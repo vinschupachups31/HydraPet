@@ -536,12 +536,18 @@
         if (e.target.checked && 'Notification' in window && Notification.permission === 'default') Notification.requestPermission();
         toast(e.target.checked ? 'Rappels activés 🔔' : 'Rappels désactivés');
       });
-      b.querySelector('#s-reset').addEventListener('click', () => {
-        if (confirm('Effacer toutes tes données HydraPet (profil, historique, compagnon) ?')) {
-          S.reset();
-          close();
-          route();
+      b.querySelector('#s-reset').addEventListener('click', (e) => {
+        const btn = e.currentTarget;
+        if (btn.dataset.armed !== '1') {
+          // confirmation dans la page (les boîtes confirm() ne sont pas disponibles partout)
+          btn.dataset.armed = '1';
+          btn.textContent = '⚠️ Touche encore pour tout effacer (définitif)';
+          setTimeout(() => { if (btn.isConnected) { btn.dataset.armed = ''; btn.textContent = '🗑️ Tout effacer'; } }, 4000);
+          return;
         }
+        S.reset();
+        close();
+        route();
       });
     });
   }
