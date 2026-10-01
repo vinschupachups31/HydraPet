@@ -18,10 +18,11 @@ const css = read('style.css');
 const body = `<main id="app" aria-live="polite"></main>\n<div id="toast" role="status" aria-live="polite"></div>`;
 const js = scripts.map((f) => `<script>\n${safe(read(f))}\n</script>`).join('\n');
 const title = '<title>HydraPet</title>';
+const fonts = (html.match(/<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com[^>]*>/) || [''])[0];
 
 const page = fragment
-  ? `${title}\n<style>\n${css}\n</style>\n${body}\n${js}\n`
-  : `<!doctype html>\n<html lang="fr">\n<head>\n<meta charset="utf-8" />\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />\n${title}\n<style>\n${css}\n</style>\n</head>\n<body>\n${body}\n${js}\n</body>\n</html>\n`;
+  ? `${title}\n${fonts}\n<style>\n${css}\n</style>\n${body}\n${js}\n`
+  : `<!doctype html>\n<html lang="fr">\n<head>\n<meta charset="utf-8" />\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />\n${title}\n${fonts}\n<style>\n${css}\n</style>\n</head>\n<body>\n${body}\n${js}\n</body>\n</html>\n`;
 
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, page);

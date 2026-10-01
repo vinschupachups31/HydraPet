@@ -112,6 +112,7 @@
       call: (fn) => ({ t: 'call', fn }),
       wait: (cond, max) => ({ t: 'wait', cond, max: max || 6, el: 0 }),
       face: (dir) => ({ t: 'call', fn: () => { pet.facing = dir; } }),
+      fall: () => ({ t: 'fall', v: 0 }),
     };
 
     function floorPoint() {
@@ -162,6 +163,15 @@
       return false;
     }
 
+    function stepFall(a, dt) {
+      a.v += 1700 * dt;
+      pet.z = Math.max(0, pet.z - a.v * dt);
+      setPose('jumpPeak');
+      if (pet.z > 0) return false;
+      burst('dust', pet.x, pet.y - 4, 10);
+      return true;
+    }
+
     function runQueue(dt) {
       const a = state.queue[0];
       if (!a) return false;
@@ -169,6 +179,7 @@
       if (a.t === 'walk') done = stepWalk(a, dt);
       else if (a.t === 'hold') done = stepHold(a, dt);
       else if (a.t === 'jump') done = stepJump(a, dt);
+      else if (a.t === 'fall') done = stepFall(a, dt);
       else if (a.t === 'call') { a.fn(); done = true; }
       else if (a.t === 'wait') { a.el += dt; setPose('alert'); done = a.cond() || a.el > a.max; }
       if (done) state.queue.shift();
@@ -332,6 +343,8 @@
         let node;
         if (type === 'heart') {
           node = el('path', { d: HEART, fill: pick(['#ff6b8a', '#ff8fab', '#ff5c7a']) }, fxLayer);
+        } else if (type === 'dust') {
+          node = el('circle', { r: rand(4, 8), fill: 'rgba(255,255,255,0.85)' }, fxLayer);
         } else if (type === 'drop') {
           node = el('circle', { r: rand(2, 4), fill: '#5ec4ff' }, fxLayer);
         } else {
@@ -339,9 +352,9 @@
         }
         state.particles.push({
           node, type, x: x + rand(-14, 14), y: y + rand(-8, 8),
-          vx: rand(-40, 40) * (type === 'confetti' ? 2 : 1),
-          vy: type === 'heart' ? rand(-70, -40) : type === 'drop' ? rand(-120, -60) : rand(-220, -90),
-          life: 0, max: type === 'heart' ? rand(0.9, 1.4) : rand(1.1, 2),
+          vx: type === 'dust' ? rand(-90, 90) : rand(-40, 40) * (type === 'confetti' ? 2 : 1),
+          vy: type === 'heart' ? rand(-70, -40) : type === 'drop' ? rand(-120, -60) : type === 'dust' ? rand(-30, -8) : rand(-220, -90),
+          life: 0, max: type === 'heart' ? rand(0.9, 1.4) : type === 'dust' ? rand(0.55, 0.9) : rand(1.1, 2),
           rot: rand(0, 360), vr: rand(-360, 360),
         });
       }
@@ -351,11 +364,11 @@
       state.particles = state.particles.filter((p) => {
         p.life += dt;
         if (p.life >= p.max) { p.node.remove(); return false; }
-        p.vy += (p.type === 'heart' ? 0 : 520) * dt;
+        p.vy += (p.type === 'heart' || p.type === 'dust' ? 0 : 520) * dt;
         p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
         const a = 1 - p.life / p.max;
         p.node.setAttribute('opacity', a.toFixed(2));
-        p.node.setAttribute('transform', `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)}) rotate(${p.rot.toFixed(0)}) scale(${p.type === 'heart' ? 0.9 + (1 - a) * 0.4 : 1})`);
+        p.node.setAttribute('transform', `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)}) rotate(${p.rot.toFixed(0)}) scale(${p.type === 'heart' ? 0.9 + (1 - a) * 0.4 : p.type === 'dust' ? 1 + (1 - a) * 1.4 : 1})`);
         return true;
       });
     }
@@ -469,6 +482,12 @@
           A.jump(pet.x, pet.y), A.jump(pet.x, pet.y),
           ...B.zoomies(), A.hold(['bounce:happy', 'prance'], 2, 0.4),
         ]);
+      },
+      /** Arrivée de l'animal dans la pièce : il tombe du haut, atterrit en écrasement, puis fait la fête. */
+      arrive() {
+        pet.x = L.user.x - 20; pet.y = 520; pet.facing = 1;
+        interrupt([A.fall(), A.hold(['land'], 0.3), A.hold(['excited', 'excited:wag', 'bounce:happy'], 2, 0.5)]);
+        pet.z = 480;
       },
       poseCount: () => state.used.size,
     };

@@ -21,9 +21,39 @@
     toastTimer = setTimeout(() => toastEl.classList.remove('show'), ms || 2800);
   }
 
+  const liveStops = [];
   function stopWorld() {
+    liveStops.splice(0).forEach((f) => f());
     if (world) { world.stop(); world = null; }
     hud = null;
+  }
+
+  /** Animal « vivant » pour les écrans d'accueil : respire, remue la queue, cligne des yeux. */
+  function livePet(container, species, colors, poseName, w, h) {
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '-84 -142 172 156');
+    svg.setAttribute('width', w || 200);
+    svg.setAttribute('height', h || 182);
+    const pet = HP.pet.create(species, colors);
+    const base = HP.poses.get(poseName);
+    pet.apply(base);
+    svg.appendChild(pet.root);
+    container.appendChild(svg);
+    if (!HP.fx.reducedMotion()) {
+      let raf = 0, nextBlink = performance.now() + 1800, blinkEnd = 0;
+      const loop = (now) => {
+        raf = requestAnimationFrame(loop);
+        if (now > nextBlink) { blinkEnd = now + 130; nextBlink = now + 2600 + Math.random() * 2600; }
+        const p = Object.assign({}, base);
+        p.tail = base.tail + 14 * Math.sin(now / 170);
+        if (now < blinkEnd) p.eyes = 'closed';
+        pet.apply(p);
+      };
+      raf = requestAnimationFrame(loop);
+      liveStops.push(() => cancelAnimationFrame(raf));
+    }
+    return pet;
   }
 
   /* ================= navigation ================= */
@@ -41,31 +71,56 @@
   /* ================= démarrage et bienvenue ================= */
   function showSplash(next) {
     const st = S.get();
-    app.innerHTML = `<div class="splash" role="img" aria-label="HydraPet">
-  <div class="splash-pet" id="sp-pet"></div>
-  <div class="splash-logo"><svg viewBox="0 0 64 64" width="42" height="42" aria-hidden="true"><path d="M32 6 C24 22 14 30 14 42 a18 18 0 0 0 36 0 C50 30 40 22 32 6Z" fill="#5ec4ff"/><ellipse cx="25" cy="40" rx="4" ry="7" fill="#fff" opacity=".55" transform="rotate(20 25 40)"/></svg><span>HydraPet</span></div>
+    const reduced = HP.fx.reducedMotion();
+    const bubbles = reduced ? '' : `<div class="bubbles" aria-hidden="true">${Array.from({ length: 9 }, (_, i) => `<i style="--x:${6 + i * 10.5}%;--s:${10 + ((i * 7) % 18)}px;--t:${7 + (i % 4) * 2}s;--dl:-${(i * 0.9).toFixed(1)}s;--dx:${i % 2 ? 14 : -14}px"></i>`).join('')}</div>`;
+    const word = [...'HydraPet'].map((c, i) => `<span class="${i < 5 ? 'w1' : 'w2'}" style="--i:${i}">${c}</span>`).join('');
+    app.innerHTML = `<div class="splash" role="img" aria-label="HydraPet, ton compagnon d’hydratation">
+  ${bubbles}
+  <div class="splash-stage" id="sp-stage"><div class="splash-pet" id="sp-pet"></div></div>
+  <div class="wordmark" aria-hidden="true">${word}</div>
+  <p class="tagline">Ton compagnon d’hydratation</p>
 </div>`;
-    $('#sp-pet').appendChild(HP.pet.renderStatic(st.pet.species, st.pet, 'bounce-happy', 190, 176));
+    const stage = $('#sp-stage');
+    HP.fx.play('water', stage, { className: 'fx-splash', maxMs: 2500 }); // la goutte tombe, l'onde se forme…
+    const petEl = $('#sp-pet');
+    livePet(petEl, st.pet.species, st.pet, 'bounce-happy', 200, 182); // …et l'animal jaillit
+    const idle = setTimeout(() => petEl.classList.add('idle'), 1300);
     let done = false;
-    const go = () => { if (done) return; done = true; clearTimeout(timer); next(); };
-    const timer = setTimeout(go, HP.fx.reducedMotion() ? 500 : 1500);
+    const go = () => { if (done) return; done = true; clearTimeout(timer); clearTimeout(idle); next(); };
+    const timer = setTimeout(go, reduced ? 700 : st.onboarded ? 2200 : 3000);
     app.querySelector('.splash').addEventListener('click', go);
   }
 
   function showWelcome() {
     const st = S.get();
+    const items = [
+      ['💧', 'Note chaque verre en 1 tap', '#d8f0ff'],
+      ['🐾', 'Ton animal vit chez toi', '#ffe6d1'],
+      ['🔔', 'Un rappel quand il faut boire', '#e6defa'],
+    ];
     app.innerHTML = `<div class="screen welcome">
-  <div class="welcome-art"><div id="w-pet"></div>
-    <svg class="welcome-glass" viewBox="0 0 60 80" width="64" height="86" aria-hidden="true"><path d="M8 6 H52 L46 70 Q45 76 39 76 H21 Q15 76 14 70 Z" fill="#e8f6ff" stroke="#9bdcff" stroke-width="3"/><path d="M11 30 H49 L46 68 Q45 72 40 72 H20 Q15 72 14 68 Z" fill="#5ec4ff"/><ellipse cx="30" cy="30" rx="19" ry="4" fill="#9bdcff"/></svg></div>
-  <h1>Bois un peu,<br />ton compagnon fait le reste.</h1>
-  <ul class="welcome-list">
-    <li style="--d:.25s"><span aria-hidden="true">💧</span>Note chaque verre en 1 tap</li>
-    <li style="--d:.4s"><span aria-hidden="true">🐾</span>Ton animal vit chez toi</li>
-    <li style="--d:.55s"><span aria-hidden="true">🔔</span>Un rappel quand il faut boire</li>
-  </ul>
-  <div class="actions"><button class="btn primary" id="go">C’est parti</button></div>
+  <div class="welcome-art">
+    <div class="welcome-pet" id="w-pet"></div>
+    <svg class="welcome-glass" viewBox="0 0 60 80" width="64" height="86" aria-hidden="true">
+      <defs><clipPath id="glass-clip"><path d="M11 22 H49 L46 68 Q45 73 40 73 H20 Q15 73 14 68 Z"/></clipPath></defs>
+      <path d="M8 6 H52 L46 70 Q45 76 39 76 H21 Q15 76 14 70 Z" fill="#e8f6ff" stroke="#9bdcff" stroke-width="3"/>
+      <g clip-path="url(#glass-clip)">
+        <g class="wave"><path d="M-60 30 Q-45 24 -30 30 T0 30 T30 30 T60 30 T90 30 T120 30 V90 H-60Z" fill="#5ec4ff"/></g>
+        <circle class="bub b1" cx="24" cy="66" r="2" fill="#fff" opacity=".8"/><circle class="bub b2" cx="34" cy="66" r="1.6" fill="#fff" opacity=".8"/><circle class="bub b3" cx="42" cy="66" r="2.2" fill="#fff" opacity=".8"/>
+      </g>
+    </svg>
+  </div>
+  <div class="welcome-copy">
+    <h1>Bois un peu, ton compagnon fait le reste.</h1>
+    <p class="lead">Un verre, un tap. Ton animal veille sur toi.</p>
+  </div>
+  <ul class="welcome-list">${items.map(([ico, txt, bg], i) => `<li style="--d:${0.3 + i * 0.15}s"><span class="chip-ico" style="background:${bg}" aria-hidden="true">${ico}</span>${txt}</li>`).join('')}</ul>
+  <div class="actions">
+    <button class="btn primary big" id="go">C’est parti</button>
+    <p class="note center">1 minute · sans compte · tes photos restent sur ton téléphone</p>
+  </div>
 </div>`;
-    $('#w-pet').appendChild(HP.pet.renderStatic(st.pet.species, st.pet, 'sit-happy', 210, 190));
+    livePet($('#w-pet'), st.pet.species, st.pet, 'sit-happy', 220, 200);
     $('#go').addEventListener('click', () => showProfile(false));
   }
 
@@ -314,10 +369,11 @@
     }));
 
     $('#next').addEventListener('click', () => {
+      const first = !st.onboarded;
       st.onboarded = true;
       S.save();
       if (photoUrl) URL.revokeObjectURL(photoUrl);
-      showHome();
+      showHome(first ? { arrive: true } : undefined);
     });
     const cancel = $('#cancel');
     if (cancel) cancel.addEventListener('click', () => { S.load(); showHome(); });
@@ -331,7 +387,7 @@
     done: ['Objectif atteint, bravo ! 🎉', 'Champion de l’hydratation ! 🏆'],
   };
 
-  function showHome() {
+  function showHome(opts) {
     stopWorld();
     const st = S.get();
     app.innerHTML = `
@@ -374,8 +430,12 @@
       prevTotal: S.todayTotal(),
     };
     world = HP.world.create($('#world'), { species: st.pet.species, colors: st.pet, room: st.room, mood: S.moodFor(hud.prevTotal, S.goal()) });
-    world.start();
     updateHud(true);
+    if (opts && opts.arrive) {
+      world.arrive();
+      setBubble(`Salut ! Moi, c’est ${st.pet.name} 🐾`, 'happy', 4500);
+    }
+    world.start();
 
     app.querySelectorAll('[data-add]').forEach((b) => b.addEventListener('click', () => addWater(Number(b.dataset.add))));
     $('#custom').addEventListener('click', customSheet);
@@ -393,7 +453,9 @@
     if (!st.settings.hintSeen) {
       st.settings.hintSeen = true;
       S.save();
-      toast(`Dis bonjour à ${st.pet.name} : touche-le, ou touche le sol pour lancer un jouet !`, 4200);
+      // à la première arrivée, on laisse d'abord l'animal se présenter
+      const hint = () => toast(`Dis bonjour à ${st.pet.name} : touche-le, ou touche le sol pour lancer un jouet !`, 4200);
+      if (opts && opts.arrive) setTimeout(() => { if (hud) hint(); }, 5200); else hint();
     }
   }
 
