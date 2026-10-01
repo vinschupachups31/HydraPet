@@ -173,4 +173,33 @@ test('shade / hex : aller-retour stable', () => {
   assert.ok(HP.colors.rgbToHsl(...HP.colors.fromHex(HP.colors.shade('#808080', 0.2)))[2] > 0.5);
 });
 
+/* ---------- animations Lottie ---------- */
+const lottieDir = path.join(__dirname, '..', 'assets', 'lottie');
+const lottieFiles = fs.readdirSync(lottieDir).filter((f) => f.endsWith('.json'));
+test('Lottie : au moins confetti et water, et lottie-data.js à jour', () => {
+  assert.ok(lottieFiles.includes('confetti.json') && lottieFiles.includes('water.json'));
+  const bundle = fs.readFileSync(path.join(lottieDir, 'lottie-data.js'), 'utf8');
+  lottieFiles.forEach((f) => assert.ok(bundle.includes('"' + path.basename(f, '.json') + '":'), f + ' absent de lottie-data.js (lancer node scripts/build-lottie-assets.js)'));
+});
+lottieFiles.forEach((f) => {
+  test('Lottie ' + f + ' : structure valide et poids raisonnable', () => {
+    const file = path.join(lottieDir, f);
+    const j = JSON.parse(fs.readFileSync(file, 'utf8'));
+    assert.ok(j.fr > 0 && j.op > j.ip && j.w > 0 && j.h > 0, 'dimensions / durée');
+    assert.ok(Array.isArray(j.layers) && j.layers.length > 0, 'calques');
+    j.layers.forEach((l) => {
+      assert.ok(l.ks && l.ks.p && l.ks.o, 'transformations du calque ' + l.nm);
+      assert.ok(l.ip >= j.ip && l.op <= j.op + 1, 'durée du calque ' + l.nm);
+      Object.values(l.ks).forEach((prop) => {
+        if (prop.a === 1) {
+          let last = -1;
+          prop.k.forEach((kf) => { assert.ok(kf.t >= last, 'images clés ordonnées (' + l.nm + ')'); last = kf.t; });
+        }
+      });
+    });
+    assert.ok(fs.statSync(file).size < 100 * 1024, 'budget : moins de 100 Ko par animation');
+    assert.ok(j.op / j.fr <= 6, 'durée de 6 s maximum');
+  });
+});
+
 console.log(`\n${passed} tests réussis` + (process.exitCode ? ' — des échecs ci-dessus' : ''));

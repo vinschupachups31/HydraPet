@@ -27,12 +27,46 @@
   }
 
   /* ================= navigation ================= */
+  let splashShown = false;
   function route() {
     stopWorld();
-    if (location.hash === '#/poses') return showGallery();
+    if (location.hash === '#/poses') { splashShown = true; return showGallery(); }
+    if (!splashShown) { splashShown = true; return showSplash(route); }
     const st = S.get();
     if (st.onboarded) return showHome();
-    return st.profile ? showPet(false) : showProfile(false);
+    if (st.profile) return showPet(false);
+    return showWelcome();
+  }
+
+  /* ================= démarrage et bienvenue ================= */
+  function showSplash(next) {
+    const st = S.get();
+    app.innerHTML = `<div class="splash" role="img" aria-label="HydraPet">
+  <div class="splash-pet" id="sp-pet"></div>
+  <div class="splash-logo"><svg viewBox="0 0 64 64" width="42" height="42" aria-hidden="true"><path d="M32 6 C24 22 14 30 14 42 a18 18 0 0 0 36 0 C50 30 40 22 32 6Z" fill="#5ec4ff"/><ellipse cx="25" cy="40" rx="4" ry="7" fill="#fff" opacity=".55" transform="rotate(20 25 40)"/></svg><span>HydraPet</span></div>
+</div>`;
+    $('#sp-pet').appendChild(HP.pet.renderStatic(st.pet.species, st.pet, 'bounce-happy', 190, 176));
+    let done = false;
+    const go = () => { if (done) return; done = true; clearTimeout(timer); next(); };
+    const timer = setTimeout(go, HP.fx.reducedMotion() ? 500 : 1500);
+    app.querySelector('.splash').addEventListener('click', go);
+  }
+
+  function showWelcome() {
+    const st = S.get();
+    app.innerHTML = `<div class="screen welcome">
+  <div class="welcome-art"><div id="w-pet"></div>
+    <svg class="welcome-glass" viewBox="0 0 60 80" width="64" height="86" aria-hidden="true"><path d="M8 6 H52 L46 70 Q45 76 39 76 H21 Q15 76 14 70 Z" fill="#e8f6ff" stroke="#9bdcff" stroke-width="3"/><path d="M11 30 H49 L46 68 Q45 72 40 72 H20 Q15 72 14 68 Z" fill="#5ec4ff"/><ellipse cx="30" cy="30" rx="19" ry="4" fill="#9bdcff"/></svg></div>
+  <h1>Bois un peu,<br />ton compagnon fait le reste.</h1>
+  <ul class="welcome-list">
+    <li style="--d:.25s"><span aria-hidden="true">💧</span>Note chaque verre en 1 tap</li>
+    <li style="--d:.4s"><span aria-hidden="true">🐾</span>Ton animal vit chez toi</li>
+    <li style="--d:.55s"><span aria-hidden="true">🔔</span>Un rappel quand il faut boire</li>
+  </ul>
+  <div class="actions"><button class="btn primary" id="go">C’est parti</button></div>
+</div>`;
+    $('#w-pet').appendChild(HP.pet.renderStatic(st.pet.species, st.pet, 'sit-happy', 210, 190));
+    $('#go').addEventListener('click', () => showProfile(false));
   }
 
   function stepsBar(n) {
@@ -312,7 +346,7 @@
   <div class="world-wrap"><svg id="world" role="img" aria-label="La pièce de ton compagnon"></svg><div class="bubble" id="bubble"></div></div>
   <section class="hud" aria-label="Hydratation">
     <div class="hud-main">
-      <svg class="ring" viewBox="0 0 80 80" aria-hidden="true"><circle class="ring-bg" cx="40" cy="40" r="34"/><circle class="ring-fg" id="ring" cx="40" cy="40" r="34" stroke-dasharray="213.6" stroke-dashoffset="213.6"/><text id="pct" x="40" y="46" text-anchor="middle">0%</text></svg>
+      <div class="ring-wrap" id="ring-wrap"><svg class="ring" viewBox="0 0 80 80" aria-hidden="true"><circle class="ring-bg" cx="40" cy="40" r="34"/><circle class="ring-fg" id="ring" cx="40" cy="40" r="34" stroke-dasharray="213.6" stroke-dashoffset="213.6"/><text id="pct" x="40" y="46" text-anchor="middle">0%</text></svg></div>
       <div class="hud-text"><div class="big"><span id="ml">0</span> <small>ml</small></div><div class="sub" id="sub"></div></div>
       <button class="icon" id="undo" aria-label="Annuler le dernier verre" title="Annuler">↩️</button>
     </div>
@@ -367,6 +401,8 @@
     if (!hud) return;
     hud.bubble.textContent = text;
     hud.bubble.className = 'bubble ' + (mood || '');
+    void hud.bubble.offsetWidth; // relance l'animation
+    hud.bubble.classList.add('pop');
     if (ms) {
       clearTimeout(bubbleTimer);
       bubbleTimer = setTimeout(() => updateHud(), ms);
@@ -381,7 +417,8 @@
     const C = 213.6;
     hud.ring.setAttribute('stroke-dashoffset', String(C * (1 - pct)));
     hud.pct.textContent = Math.round(pct * 100) + '%';
-    hud.ml.textContent = fmt(total);
+    countTo(hud.ml, first ? total : hud.shownMl || 0, total);
+    hud.shownMl = total;
     hud.sub.textContent = total >= goal ? `Objectif de ${fmt(goal)} ml atteint 🎉` : `sur ${fmt(goal)} ml · encore ${fmt(goal - total)} ml`;
     const mood = S.moodFor(total, goal);
     if (mood !== hud.mood || first) {
@@ -389,7 +426,23 @@
       const list = BUBBLES[mood];
       setBubble(list[Math.floor(Math.random() * list.length)], mood);
     }
+    const main = app.querySelector('[data-add="250"]');
+    if (main) main.classList.toggle('nudge', mood === 'thirsty');
     if (world) world.setMood(mood);
+  }
+
+  /** Fait défiler un nombre vers sa nouvelle valeur (immédiat si l'utilisateur réduit les animations). */
+  function countTo(node, from, to) {
+    cancelAnimationFrame(node._raf || 0);
+    if (from === to || HP.fx.reducedMotion()) { node.textContent = fmt(to); return; }
+    const t0 = performance.now(), dur = 480;
+    const step = (now) => {
+      const u = Math.min(1, (now - t0) / dur);
+      const e = 1 - Math.pow(1 - u, 3);
+      node.textContent = fmt(from + (to - from) * e);
+      if (u < 1) node._raf = requestAnimationFrame(step);
+    };
+    node._raf = requestAnimationFrame(step);
   }
 
   function addWater(ml) {
@@ -400,8 +453,10 @@
     updateHud();
     const after = S.todayTotal();
     if (world) world.onDrink(ml);
+    HP.fx.play('water', $('#ring-wrap'), { className: 'fx-ring', maxMs: 2500 });
     if (before < goal && after >= goal) {
-      if (world) world.celebrate();
+      const lottie = HP.fx.play('confetti', $('.world-wrap'), { className: 'fx-full', fit: 'xMidYMid slice', maxMs: 4500 });
+      if (world) world.celebrate({ confetti: !lottie });
       setBubble('Objectif atteint, bravo ! 🎉', 'done', 6000);
       toast('🎉 Objectif du jour atteint !');
     } else {

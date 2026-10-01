@@ -461,8 +461,8 @@
         if (state.petting || state.fetching) return;
         interrupt([A.hold(['bounce:happy', 'excited'], 1.1, 0.4), ...B.bowl(), A.hold(['excited:wag'], 1.2, 0.4)]);
       },
-      celebrate() {
-        for (let i = 0; i < 4; i++) burst('confetti', rand(60, 300), 120, 14);
+      celebrate(opts) {
+        if (!opts || opts.confetti !== false) for (let i = 0; i < 4; i++) burst('confetti', rand(60, 300), 120, 14);
         state.fetching = false;
         interrupt([
           A.hold(['excited', 'excited:wag'], 1.4, 0.35),

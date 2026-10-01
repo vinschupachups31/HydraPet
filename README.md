@@ -14,10 +14,14 @@ Suis ton hydratation avec un compagnon cartoon (chien ou chat) qui vit dans ta p
 Aucune installation : ouvre `index.html` dans un navigateur. Sur téléphone, « Scanner » ouvre l'appareil photo.
 Les photos ne quittent jamais l'appareil ; les données sont dans le `localStorage`.
 
+## Animation
+L'animal est animé par notre moteur SVG ; les effets (confettis, éclaboussure) sont des animations **Lottie** ; les micro-interactions sont en CSS. Détail, règles et licences : [`docs/ANIMATION.md`](docs/ANIMATION.md).
+
 ## Tests
 ```bash
-node tests/run.js   # logique : besoin en eau, historique, poses, couleurs
+node tests/run.js   # logique : besoin en eau, historique, poses, couleurs, fichiers Lottie
 ```
+Plan produit et feuille de route : [`PLAN.md`](PLAN.md).
 
 ## Structure
 ```
@@ -26,6 +30,10 @@ js/store.js    état, calcul du besoin, historique, humeur
 js/colors.js   extraction de couleurs (k-means) depuis une photo
 js/poses.js    bibliothèque de 180 poses
 js/pet.js      rendu SVG de l'animal (chien / chat)
+js/fx.js       effets Lottie avec repli automatique
+js/vendor/     lottie-web (MIT)
+assets/lottie/ animations Lottie (+ lottie-data.js généré)
+scripts/       make-lottie.js, build-lottie-assets.js
 js/room.js     pièce cartoon générée depuis la palette
 js/world.js    boucle de vie : comportements, jouet, caresses, particules
 js/app.js      écrans, hydratation, historique, réglages
