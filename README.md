@@ -14,7 +14,7 @@ git clone https://github.com/vinschupachups31/HydraPet.git
 cd HydraPet
 git checkout expo-r3f-spike
 npm install
-npx expo start
+npm start
 ```
 Puis scanner le QR code (Android : depuis Expo Go ; iPhone : avec l'appareil photo, qui ouvre Expo Go).
 
@@ -41,6 +41,21 @@ npx expo run:android
 npx eas-cli build --profile development --platform android
 ```
 iPhone : un development build exige un Mac et un compte Apple Developer (99 $/an).
+
+## Si l'écran tourne en boucle ou affiche « Something went wrong »
+Deux cas très différents : repérez lequel est le vôtre.
+
+**A. L'application ne s'ouvre jamais** (Expo Go reste sur un écran de chargement ou affiche une erreur de connexion) : c'est un problème de réseau ou de version.
+1. Le téléphone est-il sur le **même Wi-Fi** que le PC ? (pas en 4G/5G, pas sur un Wi-Fi « invité »)
+2. `npm run lan` affiche l'adresse du PC. Un VPN ou une carte virtuelle (WSL, Hyper-V, Docker) fait souvent annoncer une mauvaise adresse dans le QR code. Utilisez la commande proposée (`REACT_NATIVE_PACKAGER_HOSTNAME=…`).
+3. Pare-feu Windows : autorisez le port 8081 (commande donnée par `npm run lan`).
+4. Dans Expo Go : *Enter URL manually* → `exp://ADRESSE_DU_PC:8081`.
+5. `npm run start:tunnel` contourne le réseau local (demande d'installer un composant, accepter).
+6. Le message exact compte : « Project is incompatible with this version of Expo Go » = Expo Go ne gère pas encore le SDK 57 → mettez à jour Expo Go ; sinon development build (voir plus haut).
+
+**B. L'application s'ouvre mais plante** : elle affiche maintenant l'erreur réelle à l'écran (au lieu de « Something went wrong »). Lancez les **tests 1 à 5** du menu dans l'ordre : le premier qui échoue indique la cause (rendu 3D, chargement du modèle, texture, ombres).
+
+Renvoyez-moi le message exact (capture d'écran) et le **Rapport** : voir [`RETOUR.md`](RETOUR.md).
 
 ## Contrôles du test
 - **Toucher l'animal** : il s'arrête, se tourne vers la caméra et observe.

@@ -34,7 +34,7 @@ export function Hud() {
 }
 
 const styles = StyleSheet.create({
-  top: { margin: 12, marginTop: 44, padding: 12, borderRadius: 16, backgroundColor: 'rgba(247,243,236,0.86)', borderWidth: 1, borderColor: C.border, alignSelf: 'flex-start', maxWidth: '94%' },
+  top: { margin: 12, marginTop: 44, padding: 12, borderRadius: 16, backgroundColor: 'rgba(247,243,236,0.86)', borderWidth: 1, borderColor: C.border, alignSelf: 'flex-start', maxWidth: '68%' },
   title: { color: C.text, fontSize: 17, fontWeight: '700', marginBottom: 4 },
   line: { color: C.text, fontSize: 13, lineHeight: 18 },
   small: { color: C.muted, fontSize: 11, marginTop: 4 },

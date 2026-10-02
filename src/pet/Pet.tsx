@@ -5,6 +5,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { PetModelConfig, ROOM } from '../config/pet';
 import { PetBrain } from './brain';
+import { diag } from '../diag/diagStore';
 import { debugStore } from './debugStore';
 import { DEFAULT_LOCO, LocoState, animationMix } from './locomotion';
 import { mulberry32 } from './rng';
@@ -66,6 +67,7 @@ export function Pet({ config, source }: Props) {
   const frame = useRef(0);
 
   useEffect(() => {
+    diag.step('model', 'ok', `Modèle chargé et analysé : ${gltf.animations.length} clips (${gltf.animations.map((a) => a.name).join(', ')})`);
     debugStore.set({ loaded: true, clips: gltf.animations.map((a) => `${a.name} ${a.duration.toFixed(2)}s`).join(' · ') });
     debugStore.commands.call = () => brain.call();
     debugStore.commands.touch = () => brain.touch();
@@ -74,7 +76,9 @@ export function Pet({ config, source }: Props) {
     return () => { debugStore.commands = {}; };
   }, [brain, gltf]);
 
+  const firstFrame = useRef(false);
   useFrame((state, delta) => {
+    if (!firstFrame.current) { firstFrame.current = true; diag.step('frame', 'ok', 'Première image dessinée avec le modèle animé'); }
     const dt = Math.min(delta, 0.05);
     const cam = state.camera as THREE.PerspectiveCamera;
     brain.cameraXZ = { x: cam.position.x, z: cam.position.z };
