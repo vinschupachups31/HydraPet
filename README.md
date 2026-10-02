@@ -70,3 +70,4 @@ npm test            # déplacement, virages et comportement (20 tests)
 npm run typecheck
 npm run analyze -- assets/models/fox.glb   # clips, os, vitesse de marche d'un modèle
 ```
+- Déplacements autonomes, cadrage, glissement des pieds : voir [docs/LOCOMOTION.md](docs/LOCOMOTION.md)

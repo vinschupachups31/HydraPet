@@ -9,6 +9,7 @@ import { Home, TestId } from './src/screens/Home';
 import { TestCube } from './src/screens/TestCube';
 import { TestModel } from './src/screens/TestModel';
 import { Hud } from './src/ui/Hud';
+import { useView } from './src/pet/viewStore';
 
 // toute erreur JavaScript non rattrapée est notée dans le rapport (avant d'être transmise à Expo)
 const EU = (globalThis as { ErrorUtils?: { getGlobalHandler: () => (e: Error, f?: boolean) => void; setGlobalHandler: (h: (e: Error, f?: boolean) => void) => void } }).ErrorUtils;
@@ -19,6 +20,7 @@ if (EU) {
 
 export default function App() {
   const [test, setTest] = useState<TestId | null>(null);
+  const view = useView();
   useEffect(() => { diag.step('app', 'ok', 'Application JavaScript démarrée'); }, []);
 
   const pick = (t: TestId) => { diag.reset(); diag.step('app', 'ok', 'Application JavaScript démarrée'); setTest(t); };
@@ -46,7 +48,7 @@ export default function App() {
       <View style={styles.top} pointerEvents="box-none">
         <Pressable testID="btn-back" accessibilityRole="button" onPress={back} style={styles.back}><Text style={styles.backText}>← Menu</Text></Pressable>
       </View>
-      <View style={styles.report} pointerEvents="none"><Report compact /></View>
+      {(view.info || !(test === 'noshadow' || test === 'scene')) && <View style={styles.report} pointerEvents="none"><Report compact /></View>}
       <StatusBar style="dark" />
     </View>
   );
@@ -57,5 +59,5 @@ const styles = StyleSheet.create({
   top: { position: 'absolute', top: 40, right: 12 },
   back: { minHeight: 48, minWidth: 96, borderRadius: 20, backgroundColor: '#F7F3EC', borderWidth: 1, borderColor: '#E3E7DF', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
   backText: { color: '#26352D', fontWeight: '700' },
-  report: { position: 'absolute', left: 12, right: 12, bottom: 118 },
+  report: { position: 'absolute', left: 12, right: 12, bottom: 160 },
 });

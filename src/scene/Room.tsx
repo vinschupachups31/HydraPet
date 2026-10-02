@@ -1,4 +1,5 @@
 import { ROOM } from '../config/pet';
+import { SOFA } from '../pet/layout';
 
 /** Pièce de test : sol, deux murs, tapis, un volume de canapé. Géométrie simple, sans texture. */
 export function Room() {
@@ -21,13 +22,13 @@ export function Room() {
         <circleGeometry args={[1.05, 48]} />
         <meshStandardMaterial color="#e6dfcf" roughness={1} metalness={0} />
       </mesh>
-      <group position={[1.15, 0, -1.3]}>
+      <group position={[(SOFA.minX + SOFA.maxX) / 2, 0, (SOFA.minZ + SOFA.maxZ) / 2]}>
         <mesh position={[0, 0.2, 0]} castShadow receiveShadow>
-          <boxGeometry args={[1.5, 0.4, 0.8]} />
+          <boxGeometry args={[SOFA.maxX - SOFA.minX, 0.4, SOFA.maxZ - SOFA.minZ]} />
           <meshStandardMaterial color="#8aa595" roughness={0.95} metalness={0} />
         </mesh>
         <mesh position={[0, 0.55, -0.33]} castShadow receiveShadow>
-          <boxGeometry args={[1.5, 0.5, 0.14]} />
+          <boxGeometry args={[SOFA.maxX - SOFA.minX, 0.5, 0.14]} />
           <meshStandardMaterial color="#7f9a8b" roughness={0.95} metalness={0} />
         </mesh>
       </group>

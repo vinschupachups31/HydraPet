@@ -1,22 +1,32 @@
 import { useSyncExternalStore } from 'react';
 
 export interface DebugSnapshot {
-  mode: string;
-  gait: string;
-  autonomy: boolean;
-  speed: number;
-  heading: number;
-  x: number;
-  z: number;
+  // comportement
+  state: string;
+  remaining: number;
+  poi: string;
+  zone: string;
+  tripsInRow: number;
+  nextApproachIn: number;
+  // locomotion
+  phase: string;
+  speedRequested: number;
+  speedReal: number;
+  omega: number;
+  gaze: number;
+  distance: number;
+  // animation
+  clip: string;
   idleW: number;
   walkW: number;
   runW: number;
-  walkTS: number;
-  runTS: number;
-  pivoting: boolean;
-  phase: string;
-  omega: number;
-  gaze: number;
+  walkRate: number;
+  runRate: number;
+  feet: string;
+  // général
+  gait: string;
+  autonomy: boolean;
+  ik: boolean;
   fps: number;
   loaded: boolean;
   clips: string;
@@ -26,13 +36,16 @@ export interface DebugCommands {
   call?: () => void;
   toggleGait?: () => void;
   toggleAutonomy?: () => void;
+  toggleIK?: () => void;
   touch?: () => void;
   goTo?: (x: number, z: number, gait?: 'walk' | 'run') => void;
 }
 
 let snap: DebugSnapshot = {
-  mode: '-', gait: 'auto', autonomy: true, speed: 0, heading: 0, x: 0, z: 0, idleW: 1, walkW: 0, runW: 0,
-  walkTS: 1, runTS: 1, pivoting: false, phase: 'idle', omega: 0, gaze: 0, fps: 0, loaded: false, clips: '',
+  state: '-', remaining: 0, poi: '-', zone: '-', tripsInRow: 0, nextApproachIn: 0,
+  phase: 'idle', speedRequested: 0, speedReal: 0, omega: 0, gaze: 0, distance: 0,
+  clip: 'repos', idleW: 1, walkW: 0, runW: 0, walkRate: 1, runRate: 1, feet: '',
+  gait: 'auto', autonomy: true, ik: true, fps: 0, loaded: false, clips: '',
 };
 const listeners = new Set<() => void>();
 

@@ -57,12 +57,14 @@ export interface LocoState {
   /** Décalage de regard souhaité par rapport au corps (rad), pour la tête et pour les épaules. */
   gazeHead: number;
   gazeSpine: number;
+  /** Direction à regarder imposée par le comportement (lacet absolu, rad) ; null = regarder où l'on va. */
+  gazeYaw: number | null;
 }
 
 export function createLocoState(x = 0, z = 0, heading = 0): LocoState {
   return {
     x, z, q: quatFromYaw(heading), heading, desiredYaw: heading, speed: 0, accelLin: 0, omega: 0, accelAng: 0,
-    phase: 'idle', pivoting: false, turnSign: 0, settled: true, gazeHead: 0, gazeSpine: 0,
+    phase: 'idle', pivoting: false, turnSign: 0, settled: true, gazeHead: 0, gazeSpine: 0, gazeYaw: null,
   };
 }
 
@@ -182,8 +184,9 @@ function substep(
   // ---- 7. regard : la tête vise la direction souhaitée, les épaules la suivent moins loin ----
   const headLim = p.headLimitDeg * DEG;
   const spineLim = p.spineLimitDeg * DEG;
-  const lookErr = signedYawBetween(s.q, quatFromYaw(s.desiredYaw));
-  const headTarget = s.settled && !s.pivoting && s.phase === 'idle' ? 0 : clamp(lookErr, -headLim, headLim);
+  const forced = s.gazeYaw !== null; // regard imposé par le comportement : la tête le suit même à l'arrêt
+  const lookErr = signedYawBetween(s.q, quatFromYaw(forced ? (s.gazeYaw as number) : s.desiredYaw));
+  const headTarget = !forced && s.settled && !s.pivoting && s.phase === 'idle' ? 0 : clamp(lookErr, -headLim, headLim);
   const spineTarget = clamp(headTarget * 0.45, -spineLim, spineLim);
   const tHead = Math.max(0.03, (p.gazeLeadMs / 1000) * 0.6);
   const tSpine = Math.max(0.05, p.spineLagMs / 1000);

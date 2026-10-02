@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { debugStore, useDebug } from '../pet/debugStore';
 import { ACTIVE_MODEL } from '../pet/models';
+import { useView, viewStore } from '../pet/viewStore';
 
 const C = { bg: '#F7F3EC', text: '#26352D', muted: '#6C786F', sage: '#749B83', water: '#76B8CC', border: '#E3E7DF' };
 
@@ -14,21 +15,29 @@ function Btn({ label, onPress, testID }: { label: string; onPress?: () => void; 
 
 export function Hud() {
   const d = useDebug();
+  const view = useView();
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      <View style={styles.top} pointerEvents="none">
+      {view.info && <View style={styles.top} pointerEvents="none">
         <Text style={styles.title}>HydraPet · test technique</Text>
         <Text style={styles.line}>{d.loaded ? 'Modèle chargé' : 'Chargement du modèle…'} · {d.fps} fps</Text>
-        <Text style={styles.line}>état {d.mode}{d.pivoting ? ' (pivote)' : ''} · {d.speed.toFixed(2)} m/s · allure {d.gait}</Text>
-        <Text style={styles.line}>virage {d.phase} · ω {(d.omega * 57.3).toFixed(0)}°/s · tête {(d.gaze * 57.3).toFixed(0)}°</Text>
-        <Text style={styles.line}>repos {(d.idleW * 100).toFixed(0)}% · marche {(d.walkW * 100).toFixed(0)}% (×{d.walkTS.toFixed(2)}) · course {(d.runW * 100).toFixed(0)}% (×{d.runTS.toFixed(2)})</Text>
-        <Text style={styles.small}>{d.clips}</Text>
-      </View>
-      <Text style={styles.credits} pointerEvents="none">{ACTIVE_MODEL.credits}</Text>
+        <Text style={styles.line}>état {d.state}{d.remaining > 0 ? ` (${d.remaining.toFixed(1)} s)` : ''} · {d.poi} · zone {d.zone}</Text>
+        <Text style={styles.line}>vitesse demandée {d.speedRequested.toFixed(2)} · réelle {d.speedReal.toFixed(2)} m/s · {d.phase}</Text>
+        <Text style={styles.line}>clip {d.clip} · repos {(d.idleW * 100).toFixed(0)}% marche {(d.walkW * 100).toFixed(0)}% (×{d.walkRate.toFixed(2)}) course {(d.runW * 100).toFixed(0)}%</Text>
+        <Text style={styles.line}>appuis {d.feet} · ω {(d.omega * 57.3).toFixed(0)}°/s · tête {(d.gaze * 57.3).toFixed(0)}°</Text>
+        <Text style={styles.small}>approche dans {d.nextApproachIn.toFixed(0)} s · trajets d'affilée {d.tripsInRow}</Text>
+      </View>}
+      {view.info && <Text style={styles.credits} pointerEvents="none">{ACTIVE_MODEL.credits}</Text>}
       <View style={styles.bottom}>
         <Btn testID="btn-call" label="Appeler" onPress={() => debugStore.commands.call?.()} />
         <Btn testID="btn-gait" label={`Allure : ${d.gait}`} onPress={() => debugStore.commands.toggleGait?.()} />
         <Btn testID="btn-auto" label={`Autonomie : ${d.autonomy ? 'oui' : 'non'}`} onPress={() => debugStore.commands.toggleAutonomy?.()} />
+      </View>
+      <View style={styles.dev}>
+        <Btn testID="btn-info" label={`Infos : ${view.info ? 'oui' : 'non'}`} onPress={() => viewStore.set({ info: !view.info })} />
+        <Btn testID="btn-ik" label={`Appuis IK : ${d.ik ? 'oui' : 'non'}`} onPress={() => debugStore.commands.toggleIK?.()} />
+        <Btn testID="btn-overlay" label={`Superposition : ${view.overlay ? 'oui' : 'non'}`} onPress={() => viewStore.set({ overlay: !view.overlay })} />
+        <Btn testID="btn-close" label={`Gros plan : ${view.devClose ? 'oui' : 'non'}`} onPress={() => viewStore.set({ devClose: !view.devClose })} />
       </View>
     </View>
   );
@@ -39,8 +48,9 @@ const styles = StyleSheet.create({
   title: { color: C.text, fontSize: 17, fontWeight: '700', marginBottom: 4 },
   line: { color: C.text, fontSize: 13, lineHeight: 18 },
   small: { color: C.muted, fontSize: 11, marginTop: 4 },
-  credits: { position: 'absolute', left: 12, right: 12, bottom: 82, color: C.muted, fontSize: 10, lineHeight: 13 },
+  credits: { position: 'absolute', left: 12, right: 12, bottom: 140, color: C.muted, fontSize: 10, lineHeight: 13 },
   bottom: { position: 'absolute', left: 12, right: 12, bottom: 24, flexDirection: 'row', gap: 8 },
+  dev: { position: 'absolute', left: 12, right: 12, bottom: 82, flexDirection: 'row', gap: 8 },
   btn: { flex: 1, minHeight: 48, borderRadius: 20, backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
   btnText: { color: C.text, fontSize: 14, fontWeight: '600', textAlign: 'center' },
 });

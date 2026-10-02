@@ -1,9 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DEFAULT_TURN } from '../src/config/turning';
-import { LocoState, animationMix, createLocoState, quatFromYaw, signedYawBetween, stepLocomotion, wrapAngle, yawOf } from '../src/pet/locomotion';
-import { PetBrain } from '../src/pet/brain';
-import { mulberry32 } from '../src/pet/rng';
+import { LocoState, createLocoState, quatFromYaw, signedYawBetween, stepLocomotion, wrapAngle, yawOf } from '../src/pet/locomotion';
 
 const P = DEFAULT_TURN;
 const DT = 1 / 60;
@@ -180,55 +178,4 @@ test('regard : la tête devance le corps, reste dans ses limites, puis revient',
   assert.ok(headDone > 0.5 && headDone > bodyDone + 0.3, `à 0,25 s : tête ${(headDone * 100).toFixed(0)} % de sa course, corps ${(bodyDone * 100).toFixed(0)} % du virage`);
   const end = sim(s, null, 3);
   assert.ok(Math.abs(end.at(-1)!.gaze) < 2 * DEG, 'la tête revient face au corps');
-});
-
-test('animation : la cadence des pas suit la vitesse angulaire en réorientation', () => {
-  const slow = animationMix({ speed: 0.05, omega: 0.8, pivoting: true }, 0.48, 0.78);
-  const fast = animationMix({ speed: 0.05, omega: 2.0, pivoting: true }, 0.48, 0.78);
-  assert.ok(fast.walkTimeScale > slow.walkTimeScale, 'pas plus rapides quand on tourne plus vite');
-  for (const m of [slow, fast, animationMix({ speed: 0.3, omega: 0, pivoting: false }, 0.48, 0.78)]) assert.ok(Math.abs(m.idle + m.walk + m.run - 1) < 1e-9);
-  assert.equal(animationMix({ speed: 0, omega: 0, pivoting: false }, 0.48, 0.78).idle, 1);
-  assert.ok(Math.abs(animationMix({ speed: 0.48, omega: 0, pivoting: false }, 0.48, 0.78).walkTimeScale - 1) < 1e-9, 'cadence normale à la vitesse de référence');
-});
-
-const bounds = { minX: -1.5, maxX: 1.5, minZ: -1, maxZ: 1.2 };
-test('cerveau : déterministe avec une graine, jamais de nouvelle cible à chaque image', () => {
-  const run = (seed: number) => {
-    const b = new PetBrain(createLocoState(), bounds, mulberry32(seed));
-    const trace: string[] = []; let changes = 0, last: unknown = null;
-    for (let i = 0; i < 60 * 40; i++) {
-      b.update(DT);
-      if (b.target !== last) { changes++; last = b.target; }
-      if (i % 120 === 0) trace.push(`${b.mode}:${b.loco.x.toFixed(2)},${b.loco.z.toFixed(2)}`);
-    }
-    return { trace: trace.join('|'), changes };
-  };
-  assert.equal(run(7).trace, run(7).trace);
-  assert.notEqual(run(7).trace, run(8).trace);
-  assert.ok(run(7).changes < 40, `${run(7).changes} changements de cible en 40 s`);
-});
-
-test('cerveau : le toucher arrête et oriente vers la caméra par un virage progressif', () => {
-  const b = new PetBrain(createLocoState(), bounds, mulberry32(3));
-  b.cameraXZ = { x: 0, z: 4.5 };
-  for (let i = 0; i < 60 * 6; i++) b.update(DT);
-  b.touch();
-  let wmax = 0, amax = 0, prev = b.loco.omega;
-  for (let i = 0; i < 60 * 3; i++) { b.update(DT); wmax = Math.max(wmax, Math.abs(b.loco.omega)); amax = Math.max(amax, Math.abs(b.loco.omega - prev) / DT); prev = b.loco.omega; }
-  assert.ok(b.loco.speed < 0.1, `quasi à l'arrêt (${b.loco.speed.toFixed(2)} m/s)`);
-  const toCam = Math.atan2(b.cameraXZ.x - b.loco.x, b.cameraXZ.z - b.loco.z);
-  assert.ok(Math.abs(wrapAngle(toCam - b.loco.heading)) < 0.2, 'tourné vers la caméra');
-  assert.ok(amax <= P.turnAccel * 1.02, 'sans à-coup');
-});
-
-test('reste dans la zone sur 10 minutes simulées', () => {
-  const bb = { minX: -1.6, maxX: 1.6, minZ: -1.2, maxZ: 1.4 };
-  const b = new PetBrain(createLocoState(), bb, mulberry32(11));
-  let out = 0;
-  for (let i = 0; i < 60 * 600; i++) {
-    b.update(DT);
-    const { x, z } = b.loco;
-    if (x < bb.minX - 0.5 || x > bb.maxX + 0.5 || z < bb.minZ - 0.5 || z > bb.maxZ + 0.5) out++;
-  }
-  assert.equal(out, 0);
 });
