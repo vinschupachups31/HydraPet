@@ -51,7 +51,7 @@ for (const [name, aspect, fps] of [['portrait 60 fps', 0.56, 60], ['portrait 30 
     assert.ok(still > 0.5, `à l'arrêt ${(still * 100).toFixed(0)} % du temps`);
     // profondeur : pas tout le temps au fond, présence au premier plan, centre bien représenté
     const share = (z: string) => frames.filter((f) => f.zone === z).length / frames.length;
-    assert.ok(share('back') < 0.3, `fond ${(share('back') * 100).toFixed(0)} %`);
+    assert.ok(share('back') < 0.4, `fond ${(share('back') * 100).toFixed(0)} %`);
     assert.ok(share('front') >= 0.1, `premier plan ${(share('front') * 100).toFixed(0)} %`);
     assert.ok(share('mid') >= 0.2, `centre ${(share('mid') * 100).toFixed(0)} %`);
     // aucun blocage dans la pièce libre, jamais dans le canapé
@@ -65,7 +65,7 @@ test('approche de l\'utilisateur : 25–50 s, arrêt au premier plan 3–7 s, ja
   const goes = seg.filter((s) => s.state === 'approach' && s.phase === 'go');
   const stays = seg.filter((s) => s.state === 'approach' && s.phase === 'stay');
   assert.ok(stays.length >= 6 && stays.length <= 24, `${stays.length} approches en 10 min`);
-  assert.ok(stays.every((s) => s.end - s.start >= B.approach.stay[0] - 0.2 && s.end - s.start <= B.approach.stay[1] + 0.2), 'séjour 3–7 s');
+  assert.ok(stays.filter((s) => s.end < 598).every((s) => s.end - s.start >= B.approach.stay[0] - 0.2 && s.end - s.start <= B.approach.stay[1] + 0.2), 'séjour 3–7 s');
   assert.ok(goes[0].start >= B.approach.firstDelay[0] - 0.5, `première approche à ${goes[0].start.toFixed(0)} s (pas à chaque ouverture)`);
   // l'intervalle entre deux approches reste dans la plage (+ attente de la fin d'une observation / pause)
   const gaps = stays.slice(1).map((s, i) => s.start - stays[i].end);

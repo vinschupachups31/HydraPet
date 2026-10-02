@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { PoseRig, Pose } from '../../src/pet/rig';
+import { POSES, mirrorPose } from '../../src/config/postures';
 
 const W = 480, H = 360;
 const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -28,7 +29,8 @@ lab.load = async (url: string) => {
   (lab as any).rig = rig; (lab as any).root = root;
   return rig.missing;
 };
-lab.show = (o: { padSide?: 'L' | 'R'; pose?: Pose; w?: number; view?: string; ground?: boolean; clip?: string; t?: number; yaw?: number }) => {
+lab.show = (o: { named?: string; mirror?: boolean; padSide?: 'L' | 'R'; pose?: Pose; w?: number; view?: string; ground?: boolean; clip?: string; t?: number; yaw?: number }) => {
+  if (o.named) { o.pose = o.mirror ? mirrorPose(POSES[o.named]) : POSES[o.named]; o.padSide = o.mirror ? 'L' : 'R'; }
   root.rotation.y = o.yaw ?? 0;
   mixer.stopAllAction();
   const a = mixer.clipAction(THREE.AnimationClip.findByName(clips, o.clip ?? 'Survey')!); a.play(); mixer.setTime(o.t ?? 0);
@@ -44,7 +46,8 @@ lab.show = (o: { padSide?: 'L' | 'R'; pose?: Pose; w?: number; view?: string; gr
   cam.lookAt(c); cam.updateMatrixWorld(); renderer.render(scene, cam);
   const bp = {} as Record<string, number[]>; rig.keys.forEach((k) => { const p = new THREE.Vector3(); rig.bones[k].getWorldPosition(p); bp[k] = p.toArray().map((x) => +(x * 100).toFixed(1)); });
   const mz = new THREE.Vector3(); rig.muzzle(mz); const pd = new THREE.Vector3(); rig.pad(o.padSide ?? 'R', pd);
-  return { padToMuzzle: +(mz.distanceTo(pd) * 100).toFixed(1), padY: +(pd.y * 100).toFixed(1), muzzleY: +(mz.y * 100).toFixed(1), lowest: +(rig.lowestY() * 100).toFixed(2), shift: +(rig.groundShift * 100).toFixed(2), bones: bp };
+  let top = 0; { const pts: THREE.Vector3[] = []; rig.hullWorld(pts); for (const q of pts) top = Math.max(top, q.y); }
+  return { top: +(top * 100).toFixed(1), padToMuzzle: +(mz.distanceTo(pd) * 100).toFixed(1), padY: +(pd.y * 100).toFixed(1), muzzleY: +(mz.y * 100).toFixed(1), lowest: +(rig.lowestY() * 100).toFixed(2), shift: +(rig.groundShift * 100).toFixed(2), bones: bp };
 };
 
 /** Ajustement par descente de coordonnées : cherche les angles (dans leurs bornes) qui amènent le coussinet au museau (distance cible en cm), avec un faible rappel vers la pose de départ. */

@@ -63,9 +63,9 @@ test('toilette interrompue : le geste en cours s\'achève, la patte est reposée
   P.groom(); runUntil(P, () => P.state === 'Grooming' && P.contact > 0.9, 20);
   const before = P.remaining;
   P.abortGroom();
-  assert.ok(P.remaining <= before + 1e-9 && P.remaining < 3.5, `la séquence est raccourcie (${P.remaining.toFixed(1)} s restantes)`);
+  assert.ok(P.remaining <= before + 1e-9 && P.remaining < 5, `la séquence est raccourcie (${P.remaining.toFixed(1)} s restantes)`);
   const { t } = runUntil(P, () => P.state === 'SittingIdle', 10);
-  assert.ok(t < 3.5, 'terminé rapidement');
+  assert.ok(t < 5, 'terminé rapidement');
   assert.equal(P.contact, 0, 'plus de contact patte-museau');
 });
 

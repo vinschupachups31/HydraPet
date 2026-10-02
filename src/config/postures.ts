@@ -37,23 +37,41 @@ export const POSES: Record<string, Pose> = {
   stretch: P({
     hip: [28, 0, 0], neck: [-30, 0, 0], ...both([-100, 0, 0], 'armL', 'armR'), ...both([-5, 0, 0], 'foreL', 'foreR'), ...both([-28, 0, 0], 'legL1', 'legR1'),
   }),
-  /** Toilette : patte avant droite relevée contre le museau, tête abaissée vers elle (réglée par optimisation dans le banc de pose). */
+  /** Assise de toilette : colonne inclinée (hanche −30°) et non verticale, cuisses et jarrets repliés, antérieurs presque verticaux et légèrement fléchis
+   *  devant le thorax, tête un peu baissée, queue rabattue sur le côté. Les mains restent là où l'assise « sit » les a posées (< 2 cm). */
+  groomSit: P({
+    hip: [-30, 0, 0], neck: [16, 0, 0], head: [20, 0, 0],
+    ...both([36, 0, 0], 'armL', 'armR'), ...both([-6, 0, 0], 'foreL', 'foreR'), ...both([8, 0, 0], 'handL', 'handR'),
+    ...both([-28, 0, 0], 'legL1', 'legR1'), ...both([84, 0, 0], 'legL2', 'legR2'), ...both([-95, 0, 0], 'footL1', 'footR1'), ...both([76, 0, 0], 'footL2', 'footR2'),
+    tail1: [78, 0, 25], tail2: [0, 0, 25],
+  }),
+  /** Transfert de poids avant de lever la patte droite : le thorax se déplace vers le côté porteur (gauche), l'antérieur gauche s'étend un peu. */
+  groomShift: P({
+    hip: [-30, 0, 0], spine1: [0, -4, 0], spine2: [0, -3, 0], neck: [16, 0, 0], head: [20, 0, 0],
+    armL: [40, 0, 0], armR: [36, 0, 0], ...both([-6, 0, 0], 'foreL', 'foreR'), ...both([8, 0, 0], 'handL', 'handR'),
+    ...both([-28, 0, 0], 'legL1', 'legR1'), ...both([84, 0, 0], 'legL2', 'legR2'), ...both([-95, 0, 0], 'footL1', 'footR1'), ...both([76, 0, 0], 'footL2', 'footR2'),
+    tail1: [78, 0, 25], tail2: [0, 0, 25],
+  }),
+  /** Patte droite au museau : épaule, coude et carpe fléchis, la tête s'incline de 6° seulement (poses ajustées par optimisation dans le banc de pose, écart 2 cm). */
   groomUp: P({
-    hip: [-40, 0, 0], neck: [12, 0, 0], head: [42.8, 0, -20.3],
-    armL: [40, 0, 0], armR: [-17, 3.6, 0], foreR: [-71, 0, 0], handR: [20, 0, 0],
-    ...both([-20, 0, 0], 'legL1', 'legR1'), ...both([84, 0, 0], 'legL2', 'legR2'), ...both([-95, 0, 0], 'footL1', 'footR1'), ...both([76, 0, 0], 'footL2', 'footR2'), tail1: [78, 0, 0],
+    hip: [-30, 0, 0], spine1: [0, -4, 0], spine2: [0, -3, 0], neck: [23, 0, -6], head: [26, 0, -8],
+    armL: [40, 0, 0], armR: [-20, 2, 4], foreR: [-55, 0, 0], handR: [50.8, 0, 0], foreL: [-6, 0, 0], handL: [8, 0, 0],
+    ...both([-28, 0, 0], 'legL1', 'legR1'), ...both([84, 0, 0], 'legL2', 'legR2'), ...both([-95, 0, 0], 'footL1', 'footR1'), ...both([76, 0, 0], 'footL2', 'footR2'),
+    tail1: [78, 0, 25], tail2: [0, 0, 25],
   }),
-  /** Toilette, joue : patte au niveau de la joue, tête tournée vers elle (ajustée par optimisation dans le banc de pose, écart patte↔point 1,8 cm). */
+  /** Patte à la joue. */
   groomCheek: P({
-    hip: [-40, 0, 0], neck: [22, 10, 26], head: [32.8, 10, -22.1],
-    armL: [40, 0, 0], armR: [-27, 3.6, 0], foreR: [-81, 0, 0], handR: [20, 0, 0],
-    ...both([-20, 0, 0], 'legL1', 'legR1'), ...both([84, 0, 0], 'legL2', 'legR2'), ...both([-95, 0, 0], 'footL1', 'footR1'), ...both([76, 0, 0], 'footL2', 'footR2'), tail1: [78, 0, 0],
+    hip: [-30, 0, 0], spine1: [0, -4, 0], spine2: [0, -3, 0], neck: [23, 0, 0], head: [20, 0, 0],
+    armL: [40, 0, 0], armR: [-20, -2.1, -6], foreR: [-95, 0, 0], handR: [40, 0, 0], foreL: [-6, 0, 0], handL: [8, 0, 0],
+    ...both([-28, 0, 0], 'legL1', 'legR1'), ...both([84, 0, 0], 'legL2', 'legR2'), ...both([-95, 0, 0], 'footL1', 'footR1'), ...both([76, 0, 0], 'footL2', 'footR2'),
+    tail1: [78, 0, 25], tail2: [0, 0, 25],
   }),
-  /** Toilette, derrière l'oreille : la patte monte le long de la joue, la tête s'incline vers elle. */
+  /** Patte à la base de l'oreille : l'épaule monte, la tête accompagne légèrement. */
   groomEar: P({
-    hip: [-40, 0, 0], neck: [32, 20, 10], head: [50, 21.3, -6.3],
-    armL: [40, 0, 0], armR: [-27, -10, 0], foreR: [-71, 0, 0], handR: [42.2, 0, 0],
-    ...both([-20, 0, 0], 'legL1', 'legR1'), ...both([84, 0, 0], 'legL2', 'legR2'), ...both([-95, 0, 0], 'footL1', 'footR1'), ...both([76, 0, 0], 'footL2', 'footR2'), tail1: [78, 0, 0],
+    hip: [-30, 0, 0], spine1: [0, -4, 0], spine2: [0, -3, 0], neck: [23, 0, -4.7], head: [26, 0, -8],
+    armL: [40, 0, 0], armR: [-70, -5.1, -6.8], foreR: [-65, 0, 0], handR: [60, 0, 0], foreL: [-6, 0, 0], handL: [8, 0, 0],
+    ...both([-28, 0, 0], 'legL1', 'legR1'), ...both([84, 0, 0], 'legL2', 'legR2'), ...both([-95, 0, 0], 'footL1', 'footR1'), ...both([76, 0, 0], 'footL2', 'footR2'),
+    tail1: [78, 0, 25], tail2: [0, 0, 25],
   }),
 };
 

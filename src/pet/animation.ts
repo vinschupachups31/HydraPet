@@ -220,9 +220,10 @@ export class AnimationController {
     const pt = this.facePointWorld(post, this.tv), pad = this.rig.pad(side, this.tv2);
     this.groomGap = pt.distanceTo(pad) * 100;
     // 1) la patte vient vers le point visé (arrêt à ~1,5 cm : pas de traversée)
-    const dir = this.tv.clone().sub(this.tv2);
-    const reach = Math.max(0, dir.length() - 0.015) * w;
-    const target = this.tv2.clone().add(dir.normalize().multiplyScalar(reach));
+    // distance de sécurité de 1,8 cm : trop loin → la patte se rapproche ; trop près → elle est repoussée (le volume de la patte ne pénètre pas la tête)
+    const n = this.tv2.clone().sub(this.tv); if (n.lengthSq() < 1e-8) n.set(0, 0, 1); n.normalize();
+    const want = this.tv.clone().add(n.multiplyScalar(0.018));
+    const target = this.tv2.clone().lerp(want, w);
     const localPad = this.localOffset(hand, this.rig.pad(side, this.tv2));
     solveChain(chain, hand, localPad, target, { iterations: 5, stepLimit: 0.35, maxJointDelta: 0.5 });
     this.root.updateMatrixWorld(true);
@@ -231,8 +232,8 @@ export class AnimationController {
     const headChain = [this.rig.bones.neck, this.rig.bones.head];
     const pt2 = this.facePointWorld(post, this.tv);
     const away = pad2.clone().sub(pt2); const gap = away.length();
-    if (gap > 0.012) {
-      const t2 = pt2.clone().add(away.multiplyScalar((gap - 0.012) / gap * 0.6 * w));
+    if (gap > 0.02) {
+      const t2 = pt2.clone().add(away.multiplyScalar((gap - 0.02) / gap * 0.6 * w));
       const localPt = this.localOffset(this.rig.bones.head, pt2);
       solveChain(headChain, this.rig.bones.head, localPt, t2, { iterations: 3, stepLimit: 0.15, maxJointDelta: 0.22 });
       this.root.updateMatrixWorld(true);
