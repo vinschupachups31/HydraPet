@@ -1,5 +1,20 @@
 # Assets et licences
 
+## Modèle actif : chat réaliste (`assets/models/cat-rigged.glb`)
+
+| Élément | Source | Licence | Attribution |
+|---|---|---|---|
+| Maillage et texture du chat | « cat » de **toti.shroom** — https://sketchfab.com/3d-models/cat-51cc3bfb49b64128aa54ffa29f36d8c1 | **CC BY 4.0** | **Obligatoire** (affichée dans l'application : voir `src/pet/models.ts`) |
+| Squelette (49 os) et 14 animations | export Mesh2Motion (« fox »), animations Quaternius | **CC0** annoncé par Mesh2Motion — *à confirmer sur la page de l'outil avant publication* | Non requise |
+| Ajustement du squelette, poids de peau, symétrisation du Walk | ce dépôt (`tools/cat/`) | — | — |
+
+- Fichier : `assets/models/cat-rigged.glb` (≈ 3,2 Mo, ≈ 18 000 triangles, 49 os, 14 clips). Fichiers sources conservés : `cat-source.glb` (maillage d'origine, statique) et `m2m-fox.glb` (export Mesh2Motion).
+- Fabrication : `tools/cat/build-cat.mts` (maillage + poids de peau sur le squelette recalé) puis `tools/cat/symmetrize-walk.mts` (la patte arrière droite du clip Walk d'origine appuie 50 % plus vite que la gauche : elle est remplacée par la gauche symétrisée, décalée d'un demi-cycle).
+- Clips : Idle, Idle_Alert, Walk, Run, Sneak, Sit, Jump, Bark, Howl, Bite, Fetch, Fall, Death, Rest_Pose. Utilisés : Idle, Walk, Run. Pas de clip couché, sommeil, toilette ni étirement : ces postures restent procédurales.
+- Limites : yeux peints sur la texture (aucune paupière), pas de morph targets.
+
+## Renard (support technique d'origine, plus embarqué)
+
 | Élément | Source | Licence | Attribution |
 |---|---|---|---|
 | Modèle et texture du renard | « Fox » de PixelMannen | **CC0 1.0** | Non requise (conseillée) |

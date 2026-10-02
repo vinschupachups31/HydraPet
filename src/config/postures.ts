@@ -26,14 +26,14 @@ export const POSES: Record<string, Pose> = {
     neck: [-5, 0, 0], head: [10, 0, 0],
     ...both([48, 0, 0], 'armL', 'armR'), ...both([-136, 0, 0], 'foreL', 'foreR'), ...both([31, 0, 0], 'handL', 'handR'),
     ...both([-53, 0, 0], 'legL1', 'legR1'), ...both([87, 0, 0], 'legL2', 'legR2'), ...both([-105, 0, 0], 'footL1', 'footR1'), ...both([76, 0, 0], 'footL2', 'footR2'),
-    tail1: [30, 0, 0], tail2: [10, 0, 0],
+    tail1: [-25, 0, 15], tail2: [-20, 0, 10],
   }),
   /** Endormi : tête baissée tournée vers le flanc, queue enroulée. */
   sleep: P({
-    neck: [32, 0, 38], head: [14, 0, 12],
+    neck: [22, 0, 40], head: [20, 0, 15],
     ...both([48, 0, 0], 'armL', 'armR'), ...both([-136, 0, 0], 'foreL', 'foreR'), ...both([31, 0, 0], 'handL', 'handR'),
     ...both([-53, 0, 0], 'legL1', 'legR1'), ...both([87, 0, 0], 'legL2', 'legR2'), ...both([-105, 0, 0], 'footL1', 'footR1'), ...both([76, 0, 0], 'footL2', 'footR2'),
-    tail1: [30, 0, 65], tail2: [0, 0, 45], tail3: [0, 0, 35],
+    tail1: [-50, 0, 75], tail2: [-60, 0, 50], tail3: [-40, 0, 50],
   }),
   /** Étirement avant (« salut ») : poitrine basse, antérieurs allongés, bassin haut. */
   stretch: P({
@@ -48,22 +48,22 @@ export const POSES: Record<string, Pose> = {
   }),
   /** Patte droite au museau : épaule, coude et carpe fléchis, la tête s'incline de 6° seulement (poses ajustées par optimisation dans le banc de pose, écart 2 cm). */
   groomUp: P({
-    hip: [-30, 0, 0], spine1: [0, -4, 0], spine2: [0, -3, 0], neck: [23, 0, -6], head: [26, 0, -8],
-    armL: [40, 0, 0], armR: [-20, 2, 4], foreR: [-55, 0, 0], handR: [50.8, 0, 0], foreL: [-6, 0, 0], handL: [8, 0, 0],
+    hip: [-30, 0, 0], spine1: [0, -4, 0], spine2: [0, -3, 0], neck: [23, 0, 1.8], head: [18.2, 0, -8],
+    armL: [40, 0, 0], armR: [-40, 22, 3.5], foreR: [-95, 0, 0], handR: [40, 0, 0], foreL: [-6, 0, 0], handL: [8, 0, 0],
     ...both([-28, 0, 0], 'legL1', 'legR1'), ...both([84, 0, 0], 'legL2', 'legR2'), ...both([-95, 0, 0], 'footL1', 'footR1'), ...both([76, 0, 0], 'footL2', 'footR2'),
     tail1: [78, 0, 25], tail2: [0, 0, 25],
   }),
   /** Patte à la joue. */
   groomCheek: P({
-    hip: [-30, 0, 0], spine1: [0, -4, 0], spine2: [0, -3, 0], neck: [23, 0, 0], head: [20, 0, 0],
-    armL: [40, 0, 0], armR: [-20, -2.1, -6], foreR: [-95, 0, 0], handR: [40, 0, 0], foreL: [-6, 0, 0], handL: [8, 0, 0],
+    hip: [-30, 0, 0], spine1: [0, -4, 0], spine2: [0, -3, 0], neck: [23, 0, 6], head: [26, 0, 8],
+    armL: [40, 0, 0], armR: [-60, 28.4, -6], foreR: [-105, 0, 0], handR: [57.7, 0, 0], foreL: [-6, 0, 0], handL: [8, 0, 0],
     ...both([-28, 0, 0], 'legL1', 'legR1'), ...both([84, 0, 0], 'legL2', 'legR2'), ...both([-95, 0, 0], 'footL1', 'footR1'), ...both([76, 0, 0], 'footL2', 'footR2'),
     tail1: [78, 0, 25], tail2: [0, 0, 25],
   }),
   /** Patte à la base de l'oreille : l'épaule monte, la tête accompagne légèrement. */
   groomEar: P({
-    hip: [-30, 0, 0], spine1: [0, -4, 0], spine2: [0, -3, 0], neck: [23, 0, -4.7], head: [26, 0, -8],
-    armL: [40, 0, 0], armR: [-70, -5.1, -6.8], foreR: [-65, 0, 0], handR: [60, 0, 0], foreL: [-6, 0, 0], handL: [8, 0, 0],
+    hip: [-30, 0, 0], spine1: [0, -4, 0], spine2: [0, -3, 0], neck: [23, 0, 6], head: [26, 0, 8],
+    armL: [40, 0, 0], armR: [-90, 7.6, -1.6], foreR: [-75.9, 0, 0], handR: [-20.5, 0, 0], foreL: [-6, 0, 0], handL: [8, 0, 0],
     ...both([-28, 0, 0], 'legL1', 'legR1'), ...both([84, 0, 0], 'legL2', 'legR2'), ...both([-95, 0, 0], 'footL1', 'footR1'), ...both([76, 0, 0], 'footL2', 'footR2'),
     tail1: [78, 0, 25], tail2: [0, 0, 25],
   }),

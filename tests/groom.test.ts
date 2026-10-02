@@ -76,5 +76,5 @@ test('toilette : assise de référence — bassin fléchi à −30° (et non −
   assert.ok(hip > -35 && hip < -25, `tangage du bassin ${hip}°`);
   assert.equal(POSES.groomSit, POSES.sit, 'la toilette part de l\'assise de référence (aucune remontée du corps)');
   const top = Math.max(...ACTIVE_PROFILE.envelopes.sit.map((p) => p[1]));
-  assert.ok(top <= 0.4, `hauteur de l'enveloppe assise ${(top * 100).toFixed(0)} cm (ancienne assise : 42 cm)`);
+  assert.ok(top <= 0.42, `hauteur de l'enveloppe assise ${(top * 100).toFixed(0)} cm (borne propre au chat, oreilles comprises)`);
 });

@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ErrorBoundary } from './src/diag/ErrorBoundary';
 import { Report } from './src/diag/Report';
 import { diag } from './src/diag/diagStore';
-import { MODELS } from './src/pet/models';
+import { ACTIVE_MODEL } from './src/pet/models';
 import { Home, TestId } from './src/screens/Home';
 import { TestCube } from './src/screens/TestCube';
 import { TestModel } from './src/screens/TestModel';
@@ -39,10 +39,10 @@ export default function App() {
     <View style={styles.root}>
       <ErrorBoundary id="screen" onBack={back}>
         {test === 'cube' && <TestCube />}
-        {test === 'notex' && <TestModel model={MODELS['fox-notex']} label="sans texture" shadows={false} />}
-        {test === 'embedded' && <TestModel model={MODELS.fox} label="texture intégrée" shadows={false} />}
-        {test === 'noshadow' && <TestModel model={MODELS.fox} label="scène, sans ombres" shadows={false} />}
-        {test === 'scene' && <TestModel model={MODELS.fox} label="scène, avec ombres" shadows />}
+        {test === 'notex' && <TestModel model={ACTIVE_MODEL} label="sans texture" shadows={false} />}
+        {test === 'embedded' && <TestModel model={ACTIVE_MODEL} label="texture intégrée" shadows={false} />}
+        {test === 'noshadow' && <TestModel model={ACTIVE_MODEL} label="scène, sans ombres" shadows={false} />}
+        {test === 'scene' && <TestModel model={ACTIVE_MODEL} label="scène, avec ombres" shadows />}
         {(test === 'noshadow' || test === 'scene') && <Hud />}
       </ErrorBoundary>
       <View style={styles.top} pointerEvents="box-none">

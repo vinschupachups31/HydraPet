@@ -1,5 +1,6 @@
 /* Banc de pose (outil de développement) : charge le vrai GLB, applique une pose par PoseRig et la rend vue de profil / de face / de trois quarts.
    Construit avec esbuild (voir tools/lab/build.sh) ; piloté par Playwright. */
+import { ACTIVE_PET } from '../../src/config/pet';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { PoseRig, Pose } from '../../src/pet/rig';
@@ -23,7 +24,7 @@ const mM = mk('#e00'), mP = mk('#00e'); markers.add(mM, mP);
 
 lab.load = async (url: string) => {
   const g = await new GLTFLoader().loadAsync(url);
-  root = g.scene; root.scale.setScalar(0.0046); scene.add(root); clips = g.animations;
+  root = g.scene; root.scale.setScalar(ACTIVE_PET.scale); scene.add(root); clips = g.animations;
   rig = new PoseRig(root);
   mixer = new THREE.AnimationMixer(root);
   (lab as any).rig = rig; (lab as any).root = root;
@@ -33,7 +34,7 @@ lab.show = (o: { named?: string; mirror?: boolean; padSide?: 'L' | 'R'; pose?: P
   if (o.named) { o.pose = o.mirror ? mirrorPose(POSES[o.named]) : POSES[o.named]; o.padSide = o.mirror ? 'L' : 'R'; }
   root.rotation.y = o.yaw ?? 0;
   mixer.stopAllAction();
-  const a = mixer.clipAction(THREE.AnimationClip.findByName(clips, o.clip ?? 'Survey')!); a.play(); mixer.setTime(o.t ?? 0);
+  const a = mixer.clipAction(THREE.AnimationClip.findByName(clips, o.clip ?? ACTIVE_PET.clips.idle)!); a.play(); mixer.setTime(o.t ?? 0);
   root.updateMatrixWorld(true);
   if (o.pose) { rig.apply(o.pose, o.w ?? 1); root.updateMatrixWorld(true); }
   if (o.ground !== false && o.pose) rig.groundSolve(o.w ?? 1);
@@ -42,7 +43,7 @@ lab.show = (o: { named?: string; mirror?: boolean; padSide?: 'L' | 'R'; pose?: P
   const c = new THREE.Vector3(0, 0.15, 0), d = 1.05;
   if (view === 'side') { cam.position.set(d, 0.16, 0); }
   else if (view === 'front') { cam.position.set(0, 0.2, d); }
-  else { cam.position.set(d * 0.7, 0.3, d * 0.7); }
+  else if (view === 'top') { cam.position.set(0.01, 1.0, 0.01); } else { cam.position.set(d * 0.7, 0.3, d * 0.7); }
   cam.lookAt(c); cam.updateMatrixWorld(); renderer.render(scene, cam);
   const bp = {} as Record<string, number[]>; rig.keys.forEach((k) => { const p = new THREE.Vector3(); rig.bones[k].getWorldPosition(p); bp[k] = p.toArray().map((x) => +(x * 100).toFixed(1)); });
   const mz = new THREE.Vector3(); rig.muzzle(mz); const pd = new THREE.Vector3(); rig.pad(o.padSide ?? 'R', pd);
@@ -56,7 +57,7 @@ lab.show = (o: { named?: string; mirror?: boolean; padSide?: 'L' | 'R'; pose?: P
   const p = new THREE.Vector3(), m = new THREE.Vector3();
   const base = o.free.map(([b, i]) => ((pose.r as any)[b] ?? [0, 0, 0])[i]);
   const cost = () => {
-    mixer.stopAllAction(); const a = mixer.clipAction(THREE.AnimationClip.findByName(clips, 'Survey')!); a.play(); mixer.setTime(0); root.updateMatrixWorld(true);
+    mixer.stopAllAction(); const a = mixer.clipAction(THREE.AnimationClip.findByName(clips, ACTIVE_PET.clips.idle)!); a.play(); mixer.setTime(0); root.updateMatrixWorld(true);
     rig.apply(pose, 1); root.updateMatrixWorld(true); rig.groundSolve(1);
     rig.pad(o.side, p); if (o.point) rig.headPoint(o.point, m); else rig.muzzle(m);
     const d = p.distanceTo(m) * 100;

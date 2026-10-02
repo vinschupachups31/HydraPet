@@ -76,7 +76,7 @@ export const CAT_PROFILE: ModelProfile = {
   rig: CAT_RIG as unknown as typeof FOX_RIG,
   hull: CAT_HULL,
   envelopes: CAT_ENVELOPES,
-  capabilities: { eyelids: false, jaw: true, tongue: false, ears: true, pivotClip: false, sit: 'clip', lie: 'procedural', sleep: 'procedural', groom: 'procedural', stretch: 'procedural' },
+  capabilities: { eyelids: false, jaw: true, tongue: false, ears: true, pivotClip: false, sit: 'procedural', lie: 'procedural', sleep: 'procedural', groom: 'procedural', stretch: 'procedural' },
 };
 
 /** Profil actif de l'application. */

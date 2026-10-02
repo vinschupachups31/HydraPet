@@ -3,8 +3,7 @@
 Test visuel de faisabilité : un animal 3D riggé (GLB) qui vit dans une pièce, sur téléphone, avec Expo.
 **Ce n'est pas l'application complète** : ni journal d'eau, ni sauvegarde, ni écrans. Voir [`RESULTS.md`](RESULTS.md) pour les résultats et les limites, [`ASSETS.md`](ASSETS.md) pour les licences.
 
-> **Important :** le modèle fourni est un **renard** (stand-in technique, 576 triangles), pas un chat ni un chien, et il n'est pas réaliste.
-> Voir [`docs/ADD_A_PET.md`](docs/ADD_A_PET.md) pour brancher un vrai chat ou chien.
+> Le modèle actif est un **chat tigré réaliste** (maillage CC BY 4.0 de toti.shroom, squelette et animations Mesh2Motion). Le renard d'origine (stand-in) n'est plus embarqué. Voir [`ASSETS.md`](ASSETS.md) pour les crédits et [`docs/MODEL_PROFILE.md`](docs/MODEL_PROFILE.md) pour changer de modèle.
 
 ## Lancer sur votre téléphone (Expo Go)
 Prérequis : Node.js 22+, l'application **Expo Go** sur le téléphone, PC et téléphone sur le même Wi-Fi.
