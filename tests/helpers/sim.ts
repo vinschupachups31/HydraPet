@@ -6,6 +6,7 @@ import { BehaviorController, BehaviorState } from '../../src/pet/behavior';
 import { computeFraming } from '../../src/pet/framing';
 import { OBSTACLES, WalkArea } from '../../src/pet/layout';
 import { LocomotionController } from '../../src/pet/locomotor';
+import { PostureController } from '../../src/pet/posture';
 import { mulberry32 } from '../../src/pet/rng';
 
 export function makeSim(opts: { seed?: number; aspect?: number; cfg?: BehaviorConfig; x?: number; z?: number } = {}) {
@@ -16,12 +17,14 @@ export function makeSim(opts: { seed?: number; aspect?: number; cfg?: BehaviorCo
   const nominalWalk = CLIP_DATA.Walk.nominalSpeed * FOX_STANDIN.scale, nominalRun = CLIP_DATA.Run.nominalSpeed * FOX_STANDIN.scale;
   const turn = { ...DEFAULT_TURN, vWalk: nominalWalk, vRun: nominalRun, arriveRadius: cfg.arrive.radius };
   const loco = new LocomotionController(turn, area, cfg.bodyRadius, cfg.stall, opts.x ?? 0, opts.z ?? 0.3, 0, cfg.arrive.hysteresis, 0.06);
+  const rng = mulberry32(opts.seed ?? 1);
+  const posture = new PostureController(rng);
   const behavior = new BehaviorController({
-    loco, area, cfg, rng: mulberry32(opts.seed ?? 1),
+    loco, area, cfg, rng, posture,
     approachPoint: () => framing.approach,
     cameraXZ: () => ({ x: framing.position[0], z: framing.position[2] }),
   });
-  return { cfg, framing, area, loco, behavior, step(dt: number) { behavior.update(dt); loco.update(dt); } };
+  return { cfg, framing, area, loco, behavior, posture, step(dt: number) { behavior.update(dt); loco.update(dt); posture.update(dt); } };
 }
 
 export interface Frame { t: number; state: BehaviorState; phase: string | null; poi: string | null; x: number; z: number; speed: number; dur: number; zone: string; status: string }

@@ -71,3 +71,4 @@ npm run typecheck
 npm run analyze -- assets/models/fox.glb   # clips, os, vitesse de marche d'un modèle
 ```
 - Déplacements autonomes, cadrage, glissement des pieds : voir [docs/LOCOMOTION.md](docs/LOCOMOTION.md)
+- Comportements de chat, appuis et inventaire du modèle : voir [docs/BEHAVIORS.md](docs/BEHAVIORS.md)

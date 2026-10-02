@@ -54,13 +54,31 @@ test('le pied planté reste au sol alors que le corps avance (correction plafonn
 
 test('hors de portée : le contact est relâché proprement, sans extrapolation', () => {
   const L = makeLeg();
-  const ik = new FootIK(L.root, [{ foot: 'f', bones: ['b0', 'b1', 'b2'] }], { f: [[0.1, 0.9]] }, cfg);
+  const ik = new FootIK(L.root, [{ foot: 'f', bones: ['b0', 'b1', 'b2'] }], { f: [[0.1, 0.9]] }, { ...cfg, stepDuration: 0 });
   reset(L, 0); ik.update(true, 0.12);
   reset(L, 0.3);                                            // 30 cm : au-delà de maxCorrection
   const before = world(L.eff);
   ik.update(true, 0.5);
   assert.ok(ik.debug()[0].released, 'relâché');
   assert.ok(world(L.eff).distanceTo(before) < 1e-9, 'aucune correction appliquée');
+});
+
+test('hors de portée avec pas de rattrapage : le pied se soulève et rejoint la pose animée sans claquer', () => {
+  const L = makeLeg();
+  const ik = new FootIK(L.root, [{ foot: 'f', bones: ['b0', 'b1', 'b2'] }], { f: [[0.1, 0.9]] }, { ...cfg, stepDuration: 0.12, stepLift: 0.02 });
+  reset(L, 0); ik.update(true, 0.12, 1 / 60);
+  reset(L, 0.1); ik.update(true, 0.5, 1 / 60);
+  let last = world(L.eff).clone(), maxJump = 0, maxY = 0, steps = 0;
+  for (let i = 0; i < 30; i++) {
+    reset(L, 0.1);
+    ik.update(true, 0.5, 1 / 60);
+    const w = world(L.eff);
+    if (ik.debug()[0].inContact && !ik.debug()[0].released) steps++;
+    maxJump = Math.max(maxJump, w.distanceTo(last)); maxY = Math.max(maxY, w.y - L.eff.position.y * 0); last = w.clone();
+  }
+  assert.ok(steps > 0 && steps <= 10, `pas en cours pendant ${steps} images`);
+  assert.ok(ik.debug()[0].released, 'relâché à la fin du pas');
+  assert.ok(maxJump < 0.2, `pas de saut brutal (${maxJump.toFixed(3)} m)`);
 });
 
 test('rien ne s\'accumule d\'une image à l\'autre : même résultat à chaque image', () => {

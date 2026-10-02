@@ -59,12 +59,14 @@ export interface LocoState {
   gazeSpine: number;
   /** Direction à regarder imposée par le comportement (lacet absolu, rad) ; null = regarder où l'on va. */
   gazeYaw: number | null;
+  /** Inclinaison verticale de la tête voulue par le comportement (rad, > 0 vers le bas). */
+  gazePitch: number;
 }
 
 export function createLocoState(x = 0, z = 0, heading = 0): LocoState {
   return {
     x, z, q: quatFromYaw(heading), heading, desiredYaw: heading, speed: 0, accelLin: 0, omega: 0, accelAng: 0,
-    phase: 'idle', pivoting: false, turnSign: 0, settled: true, gazeHead: 0, gazeSpine: 0, gazeYaw: null,
+    phase: 'idle', pivoting: false, turnSign: 0, settled: true, gazeHead: 0, gazeSpine: 0, gazeYaw: null, gazePitch: 0,
   };
 }
 

@@ -30,3 +30,19 @@ export function resolveBones(root: THREE.Object3D, list: [string, number][]): Bo
 export function applyChain(chain: BoneShare[], angle: number) {
   for (const { bone, share } of chain) addYaw(bone, angle * share);
 }
+
+const _ax = new THREE.Vector3(), _rq = new THREE.Quaternion();
+/** Tangage (autour de l'axe latéral du modèle, vers le bas si > 0) ajouté à un os, dans le repère de son parent. Même principe que addYaw. */
+export function addPitch(bone: THREE.Object3D, angle: number, modelRoot: THREE.Object3D) {
+  if (!bone.parent || Math.abs(angle) < 1e-5) return;
+  modelRoot.getWorldQuaternion(_rq);
+  _ax.set(1, 0, 0).applyQuaternion(_rq);
+  bone.parent.getWorldQuaternion(qParent);
+  _ax.applyQuaternion(qParent.invert());
+  qDelta.setFromAxisAngle(_ax, angle);
+  bone.quaternion.premultiply(qDelta);
+  bone.updateMatrixWorld(true);
+}
+export function applyPitchChain(chain: BoneShare[], angle: number, modelRoot: THREE.Object3D) {
+  for (const { bone, share } of chain) addPitch(bone, angle * share, modelRoot);
+}

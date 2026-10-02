@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from 'react';
 
 /** Réglages d'affichage de développement (jamais utilisés pour le jeu normal). */
-export interface ViewState { devClose: boolean; overlay: boolean; info: boolean }
-let state: ViewState = { devClose: false, overlay: false, info: false };
+export interface ViewState { devClose: boolean; devSide: boolean; overlay: boolean; info: boolean }
+let state: ViewState = { devClose: false, devSide: false, overlay: false, info: false };
 const listeners = new Set<() => void>();
 export const viewStore = {
   get: () => state,
@@ -18,4 +18,6 @@ export const overlayData = {
   pos: { x: 0, z: 0 },
   plants: [] as { x: number; y: number; z: number }[],
   pois: [] as { id: string; x: number; z: number; r: number }[],
+  /** Repères de contact (museau, coussinet, pieds tenus) : mis à jour par l'animal quand la superposition est affichée. */
+  markers: [] as { x: number; y: number; z: number; color: string }[],
 };

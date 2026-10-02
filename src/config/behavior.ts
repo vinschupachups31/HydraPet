@@ -1,7 +1,8 @@
 /** Comportement autonome : durées, points d'intérêt, cooldowns, approche de l'utilisateur, détection de blocage.
  *  Durées en secondes, distances en mètres. Tout se règle ici. */
 export type Zone = 'back' | 'mid' | 'front';
-export type Activity = 'observe' | 'examine' | 'rest';
+import { ActivityConfig, DEFAULT_ACTIVITIES } from './activities';
+export type Activity = 'observe' | 'examine' | 'rest' | 'sit' | 'groom' | 'sleep';
 
 export interface PointOfInterest {
   id: string;
@@ -78,6 +79,8 @@ export interface BehaviorConfig {
 
   /** Réaction à un toucher. */
   react: { duration: [number, number]; observeAfter: [number, number] };
+  /** Activités posturales (assis, toilette, sommeil, étirement) : voir config/activities.ts. */
+  activities: ActivityConfig;
   pois: PointOfInterest[];
 }
 
@@ -104,15 +107,16 @@ export const DEFAULT_BEHAVIOR: BehaviorConfig = {
 
   approach: { every: [25, 50], firstDelay: [18, 40], chance: 0.85, stay: [3, 7], quietAfterInteraction: 8, minObserve: 2.2, minWalked: 0.4, minRemaining: 0.7, z: 1.5 },
   react: { duration: [2.2, 3.4], observeAfter: [1, 2.2] },
+  activities: DEFAULT_ACTIVITIES,
 
   pois: [
-    { id: 'rug-center', label: 'Tapis', zone: 'mid', x: 0.1, xn: 0.05, z: 0.15, radius: 0.35, weight: 3, cooldown: 18, activities: ['observe', 'rest'] },
-    { id: 'rug-left', label: 'Tapis (gauche)', zone: 'mid', x: -0.4, xn: -0.55, z: 0.4, radius: 0.3, weight: 2, cooldown: 20, activities: ['observe', 'rest'] },
-    { id: 'center', label: 'Centre de la pièce', zone: 'mid', x: 0.05, xn: 0.1, z: -0.4, radius: 0.35, weight: 2.2, cooldown: 15, activities: ['observe', 'examine'], lookAt: { x: 0.95, z: -1.3 } },
-    { id: 'sofa-front', label: 'Devant le canapé', zone: 'mid', x: 0.45, z: -0.6, radius: 0.28, weight: 2.4, cooldown: 25, activities: ['examine', 'observe'], lookAt: { x: 0.95, z: -1.3 } },
-    { id: 'left-edge', label: 'Bord gauche', zone: 'mid', x: -0.75, xn: -0.85, z: -0.05, radius: 0.25, weight: 1.3, cooldown: 25, activities: ['observe', 'examine'], lookAt: { x: -2.1, z: -0.4 } },
-    { id: 'back-edge', label: 'Fond de la pièce', zone: 'back', x: -0.3, xn: -0.5, z: -1.2, radius: 0.3, weight: 1.4, cooldown: 30, activities: ['observe', 'examine'], lookAt: { x: -0.3, z: -1.8 } },
-    { id: 'user-left', label: 'Près de l\'utilisateur (gauche)', zone: 'front', x: -0.35, xn: -0.6, z: 1.0, radius: 0.28, weight: 1.2, cooldown: 25, activities: ['observe', 'rest'] },
-    { id: 'user-right', label: 'Près de l\'utilisateur (droite)', zone: 'front', x: 0.4, xn: 0.6, z: 0.95, radius: 0.28, weight: 1.2, cooldown: 25, activities: ['observe', 'rest'] },
+    { id: 'rug-center', label: 'Tapis', zone: 'mid', x: 0.1, xn: 0.05, z: 0.15, radius: 0.35, weight: 3, cooldown: 18, activities: ['observe', 'rest', 'sit', 'groom', 'sleep'] },
+    { id: 'rug-left', label: 'Tapis (gauche)', zone: 'mid', x: -0.4, xn: -0.55, z: 0.4, radius: 0.3, weight: 2, cooldown: 20, activities: ['observe', 'rest', 'sit', 'groom', 'sleep'] },
+    { id: 'center', label: 'Centre de la pièce', zone: 'mid', x: 0.05, xn: 0.1, z: -0.4, radius: 0.35, weight: 2.2, cooldown: 15, activities: ['observe', 'examine', 'sit', 'groom'], lookAt: { x: 0.95, z: -1.3 } },
+    { id: 'sofa-front', label: 'Devant le canapé', zone: 'mid', x: 0.45, z: -0.6, radius: 0.28, weight: 2.4, cooldown: 25, activities: ['examine', 'observe', 'sit'], lookAt: { x: 0.95, z: -1.3 } },
+    { id: 'left-edge', label: 'Bord gauche', zone: 'mid', x: -0.75, xn: -0.85, z: -0.05, radius: 0.25, weight: 1.3, cooldown: 25, activities: ['observe', 'examine', 'sit', 'sleep'], lookAt: { x: -2.1, z: -0.4 } },
+    { id: 'back-edge', label: 'Fond de la pièce', zone: 'back', x: -0.3, xn: -0.5, z: -1.2, radius: 0.3, weight: 1.4, cooldown: 30, activities: ['observe', 'examine', 'sit', 'sleep'], lookAt: { x: -0.3, z: -1.8 } },
+    { id: 'user-left', label: 'Près de l\'utilisateur (gauche)', zone: 'front', x: -0.35, xn: -0.6, z: 1.0, radius: 0.28, weight: 1.2, cooldown: 25, activities: ['observe', 'rest', 'sit', 'groom'] },
+    { id: 'user-right', label: 'Près de l\'utilisateur (droite)', zone: 'front', x: 0.4, xn: 0.6, z: 0.95, radius: 0.28, weight: 1.2, cooldown: 25, activities: ['observe', 'rest', 'sit', 'groom'] },
   ],
 };

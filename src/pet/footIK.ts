@@ -31,6 +31,45 @@ export function contactEnvelope(u: number, rise: number, fall: number): number {
   return smooth(0, Math.max(1e-3, rise), u) * (1 - smooth(1 - Math.max(1e-3, fall), 1, u));
 }
 
+
+export interface SolveParams { iterations: number; stepLimit: number; maxJointDelta: number }
+const _sp = new THREE.Vector3(), _se = new THREE.Vector3(), _sa = new THREE.Vector3(), _st = new THREE.Vector3();
+const _spq = new THREE.Quaternion(), _swr = new THREE.Quaternion(), _sl = new THREE.Quaternion();
+
+/** CCD plafonné sur une chaîne d'os (de la racine à l'effecteur) vers une cible monde. `offset` : point de l'effecteur (repère local de l'os) à amener sur la cible.
+ *  Chaque articulation tourne peu par itération et jamais de plus de `maxJointDelta` par rapport à la pose de départ : la flexion naturelle est préservée.
+ *  Retourne l'écart final (m) entre le point suivi et la cible. */
+export function solveChain(chain: THREE.Object3D[], effector: THREE.Object3D, offset: THREE.Vector3 | null, target: THREE.Vector3, p: SolveParams): number {
+  const n = chain.length - (chain[chain.length - 1] === effector ? 1 : 0); // articulations tournées : toutes sauf l'effecteur lui-même
+  const original = chain.slice(0, n).map((b) => b.quaternion.clone());
+  const tip = (out: THREE.Vector3) => (offset ? out.copy(offset).applyMatrix4(effector.matrixWorld) : effector.getWorldPosition(out));
+  for (let it = 0; it < p.iterations; it++) {
+    for (let i = n - 1; i >= 0; i--) {
+      const bone = chain[i];
+      bone.getWorldPosition(_sp);
+      tip(_se);
+      _sa.copy(_se).sub(_sp); _st.copy(target).sub(_sp);
+      if (_sa.lengthSq() < 1e-10 || _st.lengthSq() < 1e-10) continue;
+      _sa.normalize(); _st.normalize();
+      const axis = _sp.crossVectors(_sa, _st);
+      const s = axis.length();
+      if (s < 1e-6) continue;
+      const ang = Math.min(p.stepLimit, Math.atan2(s, _sa.dot(_st)));
+      _swr.setFromAxisAngle(axis.divideScalar(s), ang);
+      bone.parent!.getWorldQuaternion(_spq);
+      _sl.copy(_spq).invert().multiply(_swr).multiply(_spq);
+      bone.quaternion.premultiply(_sl);
+      const dev = 2 * Math.acos(Math.min(1, Math.abs(original[i].dot(bone.quaternion))));
+      if (dev > p.maxJointDelta) bone.quaternion.copy(original[i]).slerp(bone.quaternion, p.maxJointDelta / dev);
+      bone.updateMatrixWorld(true);
+    }
+    tip(_se);
+    if (_se.distanceTo(target) < 5e-4) break;
+  }
+  tip(_se);
+  return _se.distanceTo(target);
+}
+
 interface FootState {
   def: FootChainDef;
   chain: THREE.Object3D[];
@@ -39,6 +78,9 @@ interface FootState {
   plant: THREE.Vector3 | null;
   wasIn: boolean;
   released: boolean;
+  /** Pas de rattrapage en cours (0 → 1) : le pied quitte son point d'appui en se soulevant au lieu de glisser ou de claquer. */
+  step: number;
+  stepFrom: THREE.Vector3 | null;
   weight: number;
   error: number;
   correction: number;
@@ -56,16 +98,16 @@ export class FootIK {
     for (const def of defs) {
       const chain = def.bones.map((n) => root.getObjectByName(n)).filter((o): o is THREE.Object3D => !!o);
       if (chain.length !== def.bones.length) { this.missing.push(def.foot); continue; }
-      this.feet.push({ def, chain, effector: chain[chain.length - 1], contacts: contactsByFoot[def.foot] ?? [], plant: null, wasIn: false, released: false, weight: 0, error: 0, correction: 0 });
+      this.feet.push({ def, chain, effector: chain[chain.length - 1], contacts: contactsByFoot[def.foot] ?? [], plant: null, wasIn: false, released: false, step: 0, stepFrom: null, weight: 0, error: 0, correction: 0 });
     }
   }
 
   setConfig(cfg: FootIKConfig) { this.cfg = cfg; }
 
-  private release(f: FootState) { f.plant = null; f.weight = 0; f.error = 0; f.correction = 0; }
+  private release(f: FootState) { f.plant = null; f.step = 0; f.stepFrom = null; f.weight = 0; f.error = 0; f.correction = 0; }
 
   /** @param active  vrai quand un clip de locomotion corrigeable domine et que le corps avance (sinon tout est relâché) */
-  update(active: boolean, phase: number) {
+  update(active: boolean, phase: number, dt = 1 / 60) {
     const c = this.cfg;
     if (!c.enabled || !active) { for (const f of this.feet) { this.release(f); f.wasIn = false; f.released = false; } return; }
     for (const f of this.feet) {
@@ -73,12 +115,26 @@ export class FootIK {
       if (u === null) { this.release(f); f.wasIn = false; f.released = false; continue; }
       f.effector.getWorldPosition(_e);
       if (!f.wasIn) { f.plant = _e.clone(); f.released = false; f.wasIn = true; } // pose du pied : le contact est pris ici, en coordonnées monde
+      if (!f.stepFrom && f.plant && c.stepDuration > 0 && Math.hypot(f.plant.x - _e.x, f.plant.z - _e.z) > c.maxCorrection) {
+        f.stepFrom = f.plant.clone(); f.step = -dt / c.stepDuration; f.plant = null; // hors de portée : le pied part en pas depuis son point d'appui (continuité : il y était tenu à l'image précédente)
+      }
+      if (f.stepFrom) { // pas de rattrapage : arc du point d'appui vers la pose animée, avec une petite levée
+        f.step = Math.min(1, f.step + dt / c.stepDuration);
+        const e = f.step * f.step * (3 - 2 * f.step);
+        _t.set(f.stepFrom.x + (_e.x - f.stepFrom.x) * e, _e.y + c.stepLift * Math.sin(Math.PI * f.step), f.stepFrom.z + (_e.z - f.stepFrom.z) * e);
+        f.weight = 1; f.error = 0;
+        this.solve(f, _t);
+        if (f.step >= 1) { f.stepFrom = null; f.released = true; f.weight = 0; }
+        continue;
+      }
       if (f.released || !f.plant) { f.weight = 0; f.error = 0; continue; }
       const env = contactEnvelope(u, c.rise, c.fall);
       const dx = f.plant.x - _e.x, dz = f.plant.z - _e.z;
       const err = Math.hypot(dx, dz);
       f.error = err;
-      if (err > c.maxCorrection) { f.released = true; f.plant = null; f.weight = 0; f.correction = 0; continue; } // hors de portée : relâché, pas d'extrapolation
+      if (err > c.maxCorrection) { // hors de portée : pas d'extrapolation. Le pied se déplace par un vrai petit pas (levée) vers la pose animée
+        f.released = true; f.plant = null; f.weight = 0; f.correction = 0; continue;
+      }
       f.weight = env;
       if (env < 1e-3) { f.correction = 0; continue; }
       _t.set(_e.x + dx * env, _e.y, _e.z + dz * env); // la hauteur reste celle de l'animation : seul le glissement horizontal est corrigé
@@ -88,40 +144,10 @@ export class FootIK {
 
   /** CCD plafonné : chaque articulation tourne peu, et jamais de plus de `maxJointDelta` par rapport à la pose animée. */
   private solve(f: FootState, target: THREE.Vector3) {
-    const c = this.cfg;
-    const n = f.chain.length - 1; // articulations tournées : toutes sauf l'effecteur
-    const original = f.chain.slice(0, n).map((b) => b.quaternion.clone());
-    for (let it = 0; it < c.iterations; it++) {
-      for (let i = n - 1; i >= 0; i--) {
-        const bone = f.chain[i];
-        bone.getWorldPosition(_p);
-        f.effector.getWorldPosition(_e);
-        const toE = _e.clone().sub(_p), toT = target.clone().sub(_p);
-        if (toE.lengthSq() < 1e-10 || toT.lengthSq() < 1e-10) continue;
-        toE.normalize(); toT.normalize();
-        _axis.crossVectors(toE, toT);
-        const s = _axis.length();
-        if (s < 1e-6) continue;
-        const ang = Math.min(c.stepLimit, Math.atan2(s, toE.dot(toT)));
-        _wr.setFromAxisAngle(_axis.divideScalar(s), ang);
-        // rotation monde → repère du parent
-        bone.parent!.getWorldQuaternion(_pq);
-        _l.copy(_pq).invert().multiply(_wr).multiply(_pq);
-        bone.quaternion.premultiply(_l);
-        // préserve la flexion naturelle : écart total plafonné par rapport à la pose animée
-        const dev = 2 * Math.acos(Math.min(1, Math.abs(original[i].dot(bone.quaternion))));
-        if (dev > c.maxJointDelta) bone.quaternion.copy(original[i]).slerp(bone.quaternion, c.maxJointDelta / dev);
-        bone.updateMatrixWorld(true);
-      }
-      f.effector.getWorldPosition(_e);
-      if (_e.distanceTo(target) < 5e-4) break;
-    }
-    // correction réellement obtenue (m) : écart entre la position animée visée et la position finale
-    f.effector.getWorldPosition(_e);
-    f.correction = _e.distanceTo(target);
+    f.correction = solveChain(f.chain, f.effector, null, target, this.cfg);
   }
 
   debug(): FootDebug[] {
-    return this.feet.map((f) => ({ name: f.def.foot, inContact: f.plant !== null || f.released, weight: f.weight, error: f.error, released: f.released, correction: f.correction }));
+    return this.feet.map((f) => ({ name: f.def.foot, inContact: f.plant !== null || f.released || f.stepFrom !== null, weight: f.weight, error: f.error, released: f.released, correction: f.correction }));
   }
 }

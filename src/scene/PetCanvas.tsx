@@ -1,13 +1,13 @@
 import { Suspense, useLayoutEffect, useMemo, useEffect, useState } from 'react';
 import { AppState, StyleSheet } from 'react-native';
 import * as THREE from 'three';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { DEFAULT_BEHAVIOR } from '../config/behavior';
 import { diag } from '../diag/diagStore';
 import { computeFraming, devCloseFraming } from '../pet/framing';
 import { RegisteredModel } from '../pet/models';
 import { Pet } from '../pet/Pet';
-import { useView } from '../pet/viewStore';
+import { overlayData, useView } from '../pet/viewStore';
 import { DebugOverlay } from './DebugOverlay';
 import { Lighting } from './Lighting';
 import { Room } from './Room';
@@ -22,11 +22,12 @@ interface Props {
 function Scene({ model, shadows }: Props) {
   const size = useThree((s) => s.size);
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
-  const { devClose } = useView();
+  const { devClose, devSide } = useView();
   // on arrondit le ratio : seul un vrai changement de fenêtre (rotation, redimensionnement) recalcule le cadrage
   const aspect = Math.round((size.width / Math.max(1, size.height)) * 100) / 100;
   const game = useMemo(() => computeFraming(aspect, DEFAULT_BEHAVIOR.approach.z), [aspect]);
   const view = useMemo(() => (devClose ? devCloseFraming(aspect) : game), [devClose, game, aspect]);
+  void devSide;
 
   useLayoutEffect(() => {
     camera.position.set(...view.position);
@@ -36,6 +37,16 @@ function Scene({ model, shadows }: Props) {
     camera.lookAt(...view.target);
     camera.updateProjectionMatrix();
   }, [camera, view]);
+
+  // caméra de profil de développement : suit l'animal pour juger les postures de côté (la caméra de jeu reste fixe, cette vue n'existe qu'en dev)
+  useFrame(() => {
+    if (!devSide) return;
+    const { x, z } = overlayData.pos;
+    camera.position.set(x + 1.45, 0.2, z);
+    camera.fov = 26;
+    camera.lookAt(x, 0.15, z);
+    camera.updateProjectionMatrix();
+  });
 
   return (
     <>

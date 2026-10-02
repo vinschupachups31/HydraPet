@@ -3,6 +3,13 @@ import { useSyncExternalStore } from 'react';
 export interface DebugSnapshot {
   // comportement
   state: string;
+  phaseName: string;
+  postureState: string;
+  pending: string;
+  groomGap: number;
+  anchors: number;
+  mode: string;
+  simSpeed: number;
   remaining: number;
   poi: string;
   zone: string;
@@ -38,11 +45,14 @@ export interface DebugCommands {
   toggleAutonomy?: () => void;
   toggleIK?: () => void;
   touch?: () => void;
+  force?: (k: 'observe' | 'sit' | 'groom' | 'sleep' | 'stretch') => void;
+  toggleMode?: () => void;
+  setSpeed?: (v: number) => void;
   goTo?: (x: number, z: number, gait?: 'walk' | 'run') => void;
 }
 
 let snap: DebugSnapshot = {
-  state: '-', remaining: 0, poi: '-', zone: '-', tripsInRow: 0, nextApproachIn: 0,
+  state: '-', phaseName: '-', postureState: 'StandingIdle', pending: '-', groomGap: 0, anchors: 0, mode: 'demo', simSpeed: 1, remaining: 0, poi: '-', zone: '-', tripsInRow: 0, nextApproachIn: 0,
   phase: 'idle', speedRequested: 0, speedReal: 0, omega: 0, gaze: 0, distance: 0,
   clip: 'repos', idleW: 1, walkW: 0, runW: 0, walkRate: 1, runRate: 1, feet: '',
   gait: 'auto', autonomy: true, ik: true, fps: 0, loaded: false, clips: '',

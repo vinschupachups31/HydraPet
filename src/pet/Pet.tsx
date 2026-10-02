@@ -15,8 +15,9 @@ import { debugStore } from './debugStore';
 import { Framing } from './framing';
 import { WalkArea, resolvePoi } from './layout';
 import { LocomotionController } from './locomotor';
+import { PostureController } from './posture';
 import { mulberry32 } from './rng';
-import { overlayData } from './viewStore';
+import { overlayData, viewStore } from './viewStore';
 
 interface Props {
   config: PetModelConfig;
@@ -54,12 +55,14 @@ export function Pet({ config, source, framing }: Props) {
     const area = new WalkArea();
     area.view = { halfWidthAt: (z) => framingRef.current.halfWidthAt(z), get maxZ() { return framingRef.current.maxZ; } };
     const loco = new LocomotionController(turn, area, bcfg.bodyRadius, bcfg.stall, 0, 0.3, 0, bcfg.arrive.hysteresis, animCfg.speedSmoothing);
+    const posture = new PostureController(rng);
+    anim.posture = posture;
     const behavior = new BehaviorController({
-      loco, area, cfg: bcfg, rng,
+      loco, area, cfg: bcfg, rng, posture,
       approachPoint: () => framingRef.current.approach,
       cameraXZ: () => ({ x: framingRef.current.position[0], z: framingRef.current.position[2] }),
     });
-    return { anim, loco, behavior, animCfg, area, bcfg };
+    return { anim, loco, behavior, posture, animCfg, area, bcfg };
   }, [root, gltf, config]);
 
   useEffect(() => {
@@ -69,10 +72,12 @@ export function Pet({ config, source, framing }: Props) {
   const group = useRef<THREE.Group>(null);
   const yawOffsetQ = useMemo(() => new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), config.yawOffset), [config.yawOffset]);
   const fps = useRef({ t: 0, n: 0 });
+  const timeScale = useRef(1);
   const tmp = useMemo(() => ({ v: new THREE.Vector3() }), []);
 
   useEffect(() => {
     const { anim, behavior, animCfg } = ctl;
+    const bcfgRef = ctl.bcfg;
     diag.step('model', 'ok', `Modèle chargé et analysé : ${gltf.animations.length} clips (${gltf.animations.map((a) => a.name).join(', ')})`);
     debugStore.set({ loaded: true, clips: gltf.animations.map((a) => `${a.name} ${a.duration.toFixed(2)}s`).join(' · '), ik: animCfg.ik.enabled });
     debugStore.commands.call = () => behavior.call();
@@ -80,6 +85,10 @@ export function Pet({ config, source, framing }: Props) {
     debugStore.commands.goTo = (x, z, gait) => behavior.goTo(x, z, gait);
     debugStore.commands.toggleGait = () => { behavior.toggleForcedGait(); debugStore.set({ gait: behavior.forcedGait ?? 'auto' }); };
     debugStore.commands.toggleAutonomy = () => { behavior.autonomy = !behavior.autonomy; debugStore.set({ autonomy: behavior.autonomy }); };
+    debugStore.commands.force = (k) => behavior.force(k);
+    debugStore.commands.toggleMode = () => { bcfgRef.activities.mode = bcfgRef.activities.mode === 'demo' ? 'production' : 'demo'; debugStore.set({ mode: bcfgRef.activities.mode }); };
+    debugStore.commands.setSpeed = (v) => { timeScale.current = v; debugStore.set({ simSpeed: v }); };
+    debugStore.set({ mode: bcfgRef.activities.mode, simSpeed: 1 });
     debugStore.commands.toggleIK = () => { animCfg.ik.enabled = !animCfg.ik.enabled; debugStore.set({ ik: animCfg.ik.enabled }); };
     const g = globalThis as { __HP_PROBE__?: unknown; __HP_API__?: unknown };
     if (g.__HP_PROBE__) {
@@ -88,6 +97,11 @@ export function Pet({ config, source, framing }: Props) {
         autonomy: (v: boolean) => { behavior.autonomy = v; },
         touch: () => behavior.touch(),
         call: () => behavior.call(),
+        force: (k: Parameters<typeof behavior.force>[0]) => behavior.force(k),
+        posture: () => ctl.posture,
+        behavior: () => behavior,
+        speed: (v: number) => { timeScale.current = v; },
+        mode: (m: 'demo' | 'production') => { bcfgRef.activities.mode = m; },
         ik: (v: boolean) => { animCfg.ik.enabled = v; },
         events: () => behavior.events,
         nominal: () => ({ walk: anim.nominalWalk, run: anim.nominalRun }),
@@ -100,17 +114,22 @@ export function Pet({ config, source, framing }: Props) {
   const firstFrame = useRef(false);
   useFrame((state, delta) => {
     if (!firstFrame.current) { firstFrame.current = true; diag.step('frame', 'ok', 'Première image dessinée avec le modèle animé'); }
-    const dt = Math.min(delta, 0.1); // protège toute la simulation contre une image anormalement longue
-    const { anim, loco, behavior } = ctl;
+    const { anim, loco, behavior, posture } = ctl;
     const s = loco.s;
-
-    behavior.update(dt);                           // 1. intention : activité, destination
-    loco.update(dt);                               // 2. position, orientation, freinage, virages, collisions
+    // vitesse de simulation (outil de test) : le temps simulé est découpé en pas ≤ 50 ms ; dt est borné contre une image anormalement longue
+    const total = Math.min(delta, 0.1) * timeScale.current;
+    const n = Math.max(1, Math.ceil(total / 0.05));
+    const dt = total / n;
+    for (let i = 0; i < n; i++) {
+      behavior.update(dt);                         // 1. intention : activité, destination, posture demandée
+      loco.update(dt);                             // 2. position, orientation, freinage, virages, collisions (le seul système qui déplace le parent)
+      posture.update(dt);                          // 3. séquences de posture (pose cible)
+    }
     if (group.current) {
       group.current.position.set(s.x, 0, s.z);
       group.current.quaternion.set(0, s.q.y, 0, s.q.w).multiply(yawOffsetQ);
     }
-    anim.update(dt, { realSpeed: loco.realSpeed, omega: s.omega, pivoting: s.pivoting }, { head: s.gazeHead, spine: s.gazeSpine }); // 3. clips, cadence, appuis, tête
+    anim.update(total, { realSpeed: loco.realSpeed, omega: s.omega, pivoting: s.pivoting }, { head: s.gazeHead, spine: s.gazeSpine, pitch: s.gazePitch }); // 4. clips, cadence, posture, appuis, tête
 
     // ---- sonde de test et debug (hors simulation) ----
     const probe = (globalThis as { __HP_PROBE__?: { frames: unknown[] } }).__HP_PROBE__;
@@ -127,11 +146,19 @@ export function Pet({ config, source, framing }: Props) {
         contact: dbg.feet.map((f) => [f.inContact, f.weight, f.error, f.released]),
         cam: state.camera.position.toArray(), screen: { headY: head.y, footY: foot.y, x: foot.x },
         gaze: [s.gazeHead, s.gazeSpine],
+        posture: { state: posture.state, seq: posture.seq?.def.name ?? null, w: posture.weight, goal: posture.goal, activity: behavior.state, phase: behavior.phase, pending: typeof behavior.pending === 'object' ? 'force' : behavior.pending, gap: dbg.posture.groomGap, shift: dbg.posture.groundShift, anchored: dbg.posture.anchored },
       });
     }
     overlayData.target = loco.target;
     overlayData.arriveRadius = ctl.bcfg.arrive.radius;
     overlayData.pos.x = s.x; overlayData.pos.z = s.z;
+    if (viewStore.get().overlay) {
+      const m = overlayData.markers; m.length = 0;
+      const rg = anim.rig;
+      const mz = rg.muzzle(tmp.v); m.push({ x: mz.x, y: mz.y, z: mz.z, color: '#e0245e' });
+      const pd = rg.pad('R', tmp.v); m.push({ x: pd.x, y: pd.y, z: pd.z, color: '#2e86ab' });
+      for (const f of anim.ik.feet) if (f.plant) m.push({ x: f.plant.x, y: f.plant.y, z: f.plant.z, color: '#d9534f' });
+    }
     overlayData.plants = anim.ik.feet.filter((f) => f.plant).map((f) => ({ x: f.plant!.x, y: f.plant!.y, z: f.plant!.z }));
 
     fps.current.t += delta; fps.current.n += 1;
@@ -139,7 +166,7 @@ export function Pet({ config, source, framing }: Props) {
       const names = dbg.feet.map((f) => (f.released ? '✗' : f.weight > 0.05 ? '●' : '○')).join('');
       debugStore.set({
         fps: Math.round(fps.current.n / fps.current.t),
-        state: behavior.state, remaining: behavior.remaining, poi: behavior.poi?.id ?? (behavior.destination ? 'point' : '-'), zone: behavior.zone, tripsInRow: behavior.tripsInRow,
+        state: behavior.state, phaseName: behavior.phase ?? '-', postureState: posture.state, pending: behavior.pending === null ? '-' : typeof behavior.pending === 'object' ? `ordre ${behavior.pending.force}` : behavior.pending, groomGap: dbg.posture.groomGap, anchors: dbg.posture.anchored.length, remaining: behavior.remaining, poi: behavior.poi?.id ?? (behavior.destination ? 'point' : '-'), zone: behavior.zone, tripsInRow: behavior.tripsInRow,
         nextApproachIn: Math.max(0, behavior.nextApproachAt - behavior.time),
         phase: s.phase, speedRequested: loco.requestedSpeed, speedReal: loco.realSpeed, omega: s.omega, gaze: s.gazeHead, distance: loco.distance,
         clip: dbg.active, idleW: dbg.idleW, walkW: dbg.walkW, runW: dbg.runW, walkRate: dbg.walkRate, runRate: dbg.runRate, feet: names,

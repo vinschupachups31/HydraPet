@@ -3,10 +3,14 @@
  *  Les durées sont tirées UNE fois à l'entrée de chaque état ; aucun tirage aléatoire par image. */
 import { BehaviorConfig, PointOfInterest, Zone } from '../config/behavior';
 import { WalkArea, resolvePoi, zoneOf } from './layout';
+import { PostureActivity } from '../config/activities';
 import { LocomotionController } from './locomotor';
+import { PostureController } from './posture';
 import { Rng } from './rng';
 
-export type BehaviorState = 'observe' | 'choose' | 'walk' | 'examine' | 'rest' | 'approach' | 'react';
+export type BehaviorState = 'observe' | 'choose' | 'walk' | 'examine' | 'rest' | 'approach' | 'react' | PostureActivity;
+export type PostureActivityPhase = 'enter' | 'hold' | 'groom' | 'pause' | 'wake' | 'awake' | 'rise' | 'stretch' | 'exit';
+type Pending = null | 'call' | 'touch' | { force: PostureActivity | 'observe' };
 
 export interface BehaviorEvent { t: number; state: BehaviorState; poi: string | null; detail: string }
 
@@ -15,6 +19,8 @@ export interface BehaviorDeps {
   area: WalkArea;
   cfg: BehaviorConfig;
   rng: Rng;
+  /** Postures procédurales (assis, couché, sommeil, étirement, toilette) : seul interlocuteur du comportement pour le corps. */
+  posture: PostureController;
   /** Point d'approche devant la caméra (plan du sol). */
   approachPoint: () => { x: number; z: number };
   /** Position de la caméra (plan du sol), pour se tourner vers elle. */
@@ -40,6 +46,20 @@ export class BehaviorController {
   lastInteraction = -1e9;
   events: BehaviorEvent[] = [];
   forcedGait: 'walk' | 'run' | null = null;
+  /** Phase de l'activité posturale en cours (assis, toilette, sommeil, étirement). */
+  phase: PostureActivityPhase | null = null;
+  phaseTime = 0;
+  /** Intention en attente (appel, caresse, ordre de test) : exécutée au prochain point sûr, jamais en superposant une transition. */
+  pending: Pending = null;
+
+  private planned: PostureActivity | null = null;
+  private lastEnd: Partial<Record<PostureActivity, number>> = {};
+  private lastActivity: PostureActivity | null = null;
+  private tripsSincePosture = 0;
+  private walkedSeconds = 0;
+  private groomRounds = 0;
+  private completedMark = 0;
+  private obs: { targets: { x: number; z: number; pitch: number }[]; settle: number; holds: number[]; idx: number; nextAt: number; done: boolean } = { targets: [], settle: 0, holds: [], idx: 0, nextAt: 0, done: true };
 
   private tripStart = { x: 0, z: 0 };
   private recent: string[] = [];
@@ -75,11 +95,45 @@ export class BehaviorController {
   }
 
   private enterObserve(range: [number, number], _afterTrip: boolean) {
-    this.d.loco.stop();
-    this.d.loco.clearLook();
+    const { loco, cfg, rng } = this.d;
+    loco.stop();
+    loco.clearLook();
+    loco.s.gazePitch = 0;
+    this.phase = null;
     this.setState('observe', this.range(range));
     this.nextGlanceAt = this.range([0.6, 1.6]);
+    // séquence d'attention : mise en place des appuis, puis une ou deux cibles tirées UNE fois, puis regard neutre
+    const n = rng() < 0.5 ? 1 : 2;
+    const cands: { x: number; z: number; pitch: number }[] = [];
+    const cam = this.d.cameraXZ();
+    cands.push({ x: cam.x, z: cam.z, pitch: -0.2 });                                       // la caméra : la tête se relève un peu
+    for (const p of cfg.pois) if (p.lookAt) cands.push({ x: p.lookAt.x, z: p.lookAt.z, pitch: 0 }); // meuble, bord de la pièce
+    cands.push({ x: loco.s.x + (rng() * 2 - 1) * 1.2, z: loco.s.z + 0.8 + rng() * 0.5, pitch: 0.12 }); // un point du sol devant lui
+    const targets: { x: number; z: number; pitch: number }[] = [];
+    for (let i = 0; i < n && cands.length; i++) targets.push(cands.splice(Math.floor(rng() * cands.length), 1)[0]);
+    const a = cfg.activities;
+    this.obs = { targets, settle: this.range(a.observeSettle), holds: targets.map(() => this.range(a.observeHold)), idx: 0, nextAt: 0, done: false };
+    this.obs.nextAt = this.obs.settle;
     this.log('observe');
+  }
+
+  /** Regard vers un point, limité par la portée du cou (le corps ne tourne pas pour un simple regard). */
+  private lookClamped(x: number, z: number, pitch: number) {
+    const L = this.d.loco, s = L.s;
+    const want = Math.atan2(x - s.x, z - s.z);
+    let off = ((want - s.heading + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+    const lim = this.gazeLimit * 0.85;
+    off = Math.max(-lim, Math.min(lim, off));
+    s.gazeYaw = s.heading + off;
+    s.gazePitch = pitch;
+  }
+
+  private stepObserveAttention() {
+    const o = this.obs;
+    if (o.done) return;
+    if (o.idx < o.targets.length) {
+      if (this.stateTime >= o.nextAt) { const t = o.targets[o.idx]; this.lookClamped(t.x, t.z, t.pitch); o.nextAt = this.stateTime + o.holds[o.idx]; o.idx++; }
+    } else if (this.stateTime >= o.nextAt) { this.d.loco.clearLook(); this.d.loco.s.gazePitch = 0; o.done = true; } // regarde ailleurs / reprend
   }
 
   private enterRest() {
@@ -120,6 +174,7 @@ export class BehaviorController {
   }
 
   private enterApproach(forced: boolean) {
+    this.planned = null;
     const a = this.d.approachPoint();
     this.poi = null;
     this.destination = a;
@@ -131,6 +186,7 @@ export class BehaviorController {
   }
 
   private enterReact() {
+    this.planned = null;
     this.lastInteraction = this.time;
     this.destination = null;
     this.poi = null;
@@ -146,10 +202,37 @@ export class BehaviorController {
 
   // ------------------------------------------------------------------ interactions (priorité)
   /** Toucher l'animal : interrompt proprement, sans téléportation (freinage progressif puis orientation vers la caméra). */
-  touch() { this.enterReact(); }
+  touch() { this.interrupt('touch'); }
 
-  /** Appel : vient au premier plan. */
-  call() { this.lastInteraction = this.time; this.enterApproach(true); }
+  private get inPostureActivity() { return this.state === 'sit' || this.state === 'groom' || this.state === 'sleep' || this.state === 'stretch'; }
+
+  /** Politique d'interruption : immédiate hors activité posturale ; sinon l'intention est mise en attente jusqu'à un point sûr
+   *  (fin de la transition, fin du geste de toilette, patte reposée, debout). Un appel répété ne redémarre rien. */
+  private interrupt(kind: 'call' | 'touch') {
+    this.lastInteraction = this.time;
+    if (!this.inPostureActivity) { if (kind === 'touch') this.enterReact(); else this.enterApproach(true); return; }
+    const P = this.d.posture;
+    if (kind === 'touch' && this.state === 'sleep' && this.phase === 'hold') {
+      if (this.d.rng() >= this.d.cfg.activities.wakeOnTouch) { P.nudge(); this.log('caresse : petite réaction, il reste endormi'); return; }
+    }
+    if (this.pending !== 'call') this.pending = kind;       // l'appel l'emporte sur la caresse ; deux appels = une seule intention
+    this.log(`intention en attente : ${kind}`);
+    this.leavePostureActivity();
+  }
+
+  /** Demande la sortie propre de l'activité en cours (sans casser une transition ni une toilette en plein geste). */
+  private leavePostureActivity() {
+    const P = this.d.posture;
+    if (this.state === 'stretch') return;                   // 3,5 s : on la laisse finir
+    if (this.state === 'groom') P.abortGroom();
+    if (this.phase === 'exit' || this.phase === 'rise') return;
+    this.phase = this.state === 'sleep' ? 'rise' : 'exit';
+    this.phaseTime = 0;
+    P.request('stand');
+  }
+
+  /** Appel : vient au premier plan (après s'être relevé s'il était assis, en toilette ou endormi). */
+  call() { this.interrupt('call'); }
 
   /** Commande de test : aller à un point précis par le chemin normal. */
   goTo(x: number, z: number, gait: 'walk' | 'run' = 'walk') { this.enterWalk({ x, z }, null, gait); }
@@ -214,12 +297,155 @@ export class BehaviorController {
   private decideAfterObserve() {
     const { cfg, rng } = this.d;
     this.tripsInRow = 0; // un arrêt réel vient d'avoir lieu
+    // un trajet vers un lieu de repos vient de se terminer : on s'installe
+    if (this.planned) { const k = this.planned; this.planned = null; if (this.beginActivity(k)) return; }
+    const act = this.pickPostureActivity();
+    if (act && this.beginActivity(act)) return;
     const r = rng();
     // on ne se repose que là où le point d'intérêt le prévoit (ou sans point d'intérêt)
     const canRest = !this.poi || this.poi.activities.includes('rest');
     if (r < cfg.longPauseChance && canRest) return this.enterRest();
     if (r >= cfg.longPauseChance && r < cfg.longPauseChance + cfg.examineChance && this.poi && this.poi.activities.includes('examine') && this.poi.lookAt) return this.enterExamine();
     if (!this.startTrip()) this.enterRest(); // rien d'accessible : il se repose plutôt que de s'agiter
+  }
+
+  // ------------------------------------------------------------------ activités posturales
+  private tuning(k: PostureActivity) { const a = this.d.cfg.activities; return a.tunings[a.mode][k]; }
+
+  /** Les activités posturales sont évaluées après une observation, avec cooldown, mélange avec la marche et chances propres. */
+  private pickPostureActivity(): PostureActivity | null {
+    if (!this.autonomy || this.time - this.lastInteraction < 6) return null;
+    const order: PostureActivity[] = ['sleep', 'groom', 'sit', 'stretch'];
+    for (const k of order) {
+      const t = this.tuning(k);
+      if (k === this.lastActivity) continue;                                   // jamais deux fois la même activité d'affilée
+      if (this.time - (this.lastEnd[k] ?? -1e9) < t.cooldown) continue;
+      if (this.tripsSincePosture < t.minTrips) continue;
+      if (k === 'sleep' && (this.time < (t.warmup ?? 0) || this.walkedSeconds < (t.minWalked ?? 0))) continue;
+      if (this.d.rng() >= t.chance) continue;
+      if (k === 'sleep' && !this.hasRoom(this.d.cfg.activities.sleepClearance)) {
+        if (this.startSleepTrip()) return null;                                // il rejoint d'abord un lieu de repos
+        continue;
+      }
+      if ((k === 'sit' || k === 'groom') && !this.hasRoom(this.d.cfg.activities.sitClearance)) continue;
+      return k;
+    }
+    return null;
+  }
+
+  private hasRoom(r: number) {
+    const s = this.d.loco.s;
+    return this.d.area.isFree(s.x, s.z, r, false) ;
+  }
+
+  /** Lieu de repos accessible : point d'intérêt « sommeil » avec assez d'espace pour le corps couché et la queue, chemin libre. */
+  private startSleepTrip(): boolean {
+    const { cfg, area, rng, loco } = this.d;
+    const clear = cfg.activities.sleepClearance, s = loco.s;
+    const spots: { poi: PointOfInterest; x: number; z: number; w: number }[] = [];
+    for (const poi of cfg.pois) {
+      if (!poi.activities.includes('sleep') || (this.cooldownUntil.get(poi.id) ?? 0) > this.time) continue;
+      const c = resolvePoi(poi, area.view, cfg.viewEdgeMargin);
+      if (!area.isFree(c.x, c.z, clear, true, cfg.viewEdgeMargin * 0.5)) continue;
+      if (Math.hypot(c.x - s.x, c.z - s.z) < cfg.minTripDistance) continue;
+      if (!area.segmentFree(s.x, s.z, c.x, c.z, cfg.bodyRadius * 1.2)) continue;
+      spots.push({ poi, x: c.x, z: c.z, w: poi.weight });
+    }
+    if (!spots.length) return false;
+    let tot = 0; for (const p of spots) tot += p.w;
+    let r = rng() * tot, pick = spots[spots.length - 1];
+    for (const p of spots) { r -= p.w; if (r <= 0) { pick = p; break; } }
+    this.planned = 'sleep';
+    this.cooldownUntil.set(pick.poi.id, this.time + pick.poi.cooldown);
+    this.enterWalk({ x: pick.x, z: pick.z }, pick.poi, 'walk');
+    this.log(`trajet vers le lieu de repos ${pick.poi.id}`);
+    return true;
+  }
+
+  /** Entrée dans une activité posturale. Refusée (false) si le corps n'est pas immobile. */
+  private beginActivity(kind: PostureActivity): boolean {
+    const { loco, posture } = this.d;
+    if (loco.realSpeed > 0.06 || !posture.settled) return false;
+    loco.stop(); loco.clearLook(); loco.s.gazePitch = 0;
+    this.pending = this.pending && typeof this.pending === 'object' ? null : this.pending;
+    this.setState(kind, 0);
+    this.phaseTime = 0;
+    this.tripsInRow = 0;
+    this.lastActivity = kind;
+    this.groomRounds = 0;
+    if (kind === 'sit' || kind === 'groom') { this.phase = 'enter'; posture.request('sit'); }
+    else if (kind === 'sleep') { this.phase = 'enter'; posture.request('sleep'); }
+    else { this.phase = 'stretch'; posture.stretch(); this.completedMark = posture.completed; }
+    this.log(`activité : ${kind}`);
+    return true;
+  }
+
+  private setPhase(ph: PostureActivityPhase, duration = 0) { this.phase = ph; this.phaseTime = 0; if (duration > 0) { this.stateTime = 0; this.stateDuration = duration; } }
+
+  private finishActivity() {
+    const k = this.state as PostureActivity;
+    this.lastEnd[k] = this.time;
+    this.tripsSincePosture = 0;
+    if (k === 'sleep') this.walkedSeconds = 0;
+    this.phase = null;
+    this.d.loco.clearLook(); this.d.loco.s.gazePitch = 0;
+    const p = this.pending; this.pending = null;
+    if (p === 'call') return this.enterApproach(true);
+    if (p === 'touch') return this.enterReact();
+    if (p && typeof p === 'object') { if (p.force === 'observe') return this.enterObserve([2, 6], false); this.lastEnd[p.force] = -1e9; if (this.beginActivity(p.force)) return; }
+    this.enterObserve([1.5, 3], false);
+  }
+
+  private updatePostureActivity(d: number) {
+    const { posture: P, cfg, rng } = this.d;
+    const a = cfg.activities;
+    this.phaseTime += d;
+    const settled = (pose: 'stand' | 'sit' | 'lie' | 'sleep') => P.posture === pose && !P.busy && P.goal === pose;
+    switch (this.state) {
+      case 'sit':
+        if (this.phase === 'enter' && settled('sit')) this.setPhase('hold', this.range(this.tuning('sit').hold));
+        else if (this.phase === 'hold') { this.glance([2, 4.5]); if (this.stateTime >= this.stateDuration) { this.d.loco.clearLook(); this.setPhase('exit'); P.request('stand'); } }
+        else if (this.phase === 'exit' && settled('stand')) this.finishActivity();
+        break;
+      case 'groom':
+        if (this.phase === 'enter' && settled('sit')) { this.completedMark = P.completed; this.groomRounds++; this.setPhase('groom'); P.groom(); }
+        else if (this.phase === 'groom' && !P.busy && P.completed > this.completedMark) this.setPhase('pause', this.range(a.observeHold));     // patte reposée : il observe brièvement
+        else if (this.phase === 'pause') {
+          this.glance([1.5, 3]);
+          if (this.stateTime >= this.stateDuration) {
+            this.d.loco.clearLook();
+            if (this.groomRounds < 2 && rng() < a.groomRepeat) { this.completedMark = P.completed; this.groomRounds++; this.setPhase('groom'); P.groom(); }
+            else { this.setPhase('exit'); P.request('stand'); }
+          }
+        } else if (this.phase === 'exit' && settled('stand')) this.finishActivity();
+        break;
+      case 'sleep':
+        if (this.phase === 'enter' && settled('sleep')) this.setPhase('hold', this.range(this.tuning('sleep').hold)); // durée de sommeil tirée une seule fois
+        else if (this.phase === 'hold' && this.stateTime >= this.stateDuration) { this.setPhase('wake'); P.request('lie'); }
+        else if (this.phase === 'wake' && settled('lie')) this.setPhase('awake', this.range(a.awakeLying));
+        else if (this.phase === 'awake' && this.stateTime >= this.stateDuration) { this.setPhase('rise'); P.request('stand'); }
+        else if (this.phase === 'rise' && settled('stand')) {
+          if (!this.pending && rng() < a.stretchAfterWake && P.stretch()) { this.completedMark = P.completed; this.setPhase('stretch'); }
+          else this.finishActivity();
+        } else if (this.phase === 'stretch' && !P.busy && P.completed > this.completedMark) this.finishActivity();
+        break;
+      case 'stretch':
+        if (this.phase === 'stretch' && !P.busy && P.completed > this.completedMark) this.finishActivity();
+        else if (this.phase === 'stretch' && !P.busy && !P.settled && P.completed === this.completedMark && this.phaseTime > 0.5) this.finishActivity(); // étirement refusé : on passe
+        break;
+      default: break;
+    }
+  }
+
+  /** Commande de test : lance l'activité par les MÊMES transitions que l'autonomie (jamais de saut direct à la pose finale). */
+  force(kind: PostureActivity | 'observe') {
+    this.lastInteraction = this.time;
+    if (this.inPostureActivity) { this.pending = { force: kind }; this.log(`intention en attente : ${kind}`); this.leavePostureActivity(); return; }
+    if (kind === 'observe') { this.enterObserve([2, 6], false); return; }
+    if (this.state === 'walk' || this.state === 'approach') { this.d.loco.stop(); }
+    this.planned = null;
+    if (kind === 'sleep' && !this.hasRoom(this.d.cfg.activities.sleepClearance)) { if (this.startSleepTrip()) return; this.log('sommeil : aucun lieu de repos accessible'); return; }
+    if (!this.beginActivity(kind)) { this.pending = { force: kind }; this.enterObserve([0.8, 1.2], false); this.log(`${kind} : en attente de l'arrêt complet`); }
   }
 
   private glance(rangeNext: [number, number]) {
@@ -235,6 +461,7 @@ export class BehaviorController {
   private approachAllowed() {
     const a = this.d.cfg.approach, L = this.d.loco;
     if (!this.autonomy || this.time - this.lastInteraction <= a.quietAfterInteraction) return false;
+    if (this.d.posture.busy || this.pending) return false;
     if (this.state === 'observe' || this.state === 'examine') return this.stateTime >= a.minObserve; // une observation dure au moins `minObserve`
     if (this.state === 'walk') return Math.hypot(L.s.x - this.tripStart.x, L.s.z - this.tripStart.z) >= a.minWalked && L.distance > a.minRemaining;
     return false; // une pause longue va à son terme : l'occasion est saisie ensuite
@@ -245,6 +472,7 @@ export class BehaviorController {
     this.time += d;
     this.stateTime += d;
     const { cfg, loco } = this.d;
+    if (loco.realSpeed > 0.1) this.walkedSeconds += d;
 
     // opportunités à fréquence réduite (jamais à chaque image)
     this.decisionAcc += d;
@@ -258,11 +486,16 @@ export class BehaviorController {
 
     switch (this.state) {
       case 'observe':
-        this.glance([1.2, 2.6]);
+        this.stepObserveAttention();
         if (this.stateTime >= this.stateDuration) {
+          const pf = this.pending;
+          if (pf && typeof pf === 'object') { this.pending = null; this.force(pf.force); break; } // ordre de test en attente de l'arrêt complet
           if (!this.autonomy) { this.stateTime = 0; break; }
           this.decideAfterObserve();
         }
+        break;
+      case 'sit': case 'groom': case 'sleep': case 'stretch':
+        this.updatePostureActivity(d);
         break;
       case 'rest':
         this.glance([2.5, 5]);
@@ -275,12 +508,13 @@ export class BehaviorController {
       }
       case 'walk': {
         if (loco.status === 'arrived') {
-          this.tripsInRow++;
+          this.tripsInRow++; this.tripsSincePosture++;
           // après un trajet : observation de 2 à 6 s (sauf, parfois, un second trajet enchaîné ; jamais trois d'affilée)
-          if (this.tripsInRow < cfg.maxTripsInRow && this.d.rng() > cfg.observeChance && this.autonomy && this.poi) {
+          if (!this.planned && this.tripsInRow < cfg.maxTripsInRow && this.d.rng() > cfg.observeChance && this.autonomy && this.poi) {
             if (!this.startTrip()) this.enterObserve(cfg.observeAfterTrip, true);
           } else this.enterObserve(cfg.observeAfterTrip, true);
         } else if (loco.status === 'blocked') {
+          this.planned = null;
           if (this.poi) this.cooldownUntil.set(this.poi.id, this.time + cfg.stall.poiCooldown); // destination inaccessible : on l'oublie un moment
           this.log('bloqué → destination abandonnée');
           this.poi = null;

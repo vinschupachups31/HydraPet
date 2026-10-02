@@ -5,8 +5,11 @@ import { AnimationConfig } from '../config/animation';
 import { ClipLocomotionData } from '../config/foxClips';
 import { PetModelConfig } from '../config/pet';
 import { diag } from '../diag/diagStore';
-import { FootDebug, FootIK } from './footIK';
-import { applyChain, resolveBones } from './headLook';
+import { FootDebug, FootIK, solveChain } from './footIK';
+import { applyChain, applyPitchChain, resolveBones } from './headLook';
+import { PostureController } from './posture';
+import { PoseRig } from './rig';
+import { FOX_RIG } from '../config/foxRig';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const smooth = (e0: number, e1: number, x: number) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); };
@@ -77,6 +80,8 @@ export interface AnimDebug {
   locomoting: boolean;
   phase: number;
   feet: FootDebug[];
+  /** Posture : état, poids de la couche, décalage du sol (cm), écart patte-museau pendant la toilette (cm), pieds tenus. */
+  posture: { state: string; weight: number; groundShift: number; groomGap: number; anchored: string[]; contact: number };
 }
 
 export class AnimationController {
@@ -89,6 +94,16 @@ export class AnimationController {
   private headChain: ReturnType<typeof resolveBones>;
   private spineChain: ReturnType<typeof resolveBones>;
   private durations: Record<Slot, number>;
+  readonly rig: PoseRig;
+  posture: PostureController | null = null;
+  private anchorSeq = -1;
+  private anchorTargets: { chain: THREE.Object3D[]; effector: THREE.Object3D; target: THREE.Vector3 }[] = [];
+  private gazePitchNow = 0;
+  private groomGap = 0;
+  private padOffset = new THREE.Vector3();
+  private muzzleOffset = new THREE.Vector3();
+  private tv = new THREE.Vector3();
+  private tv2 = new THREE.Vector3();
 
   constructor(
     private root: THREE.Object3D,
@@ -119,11 +134,15 @@ export class AnimationController {
     if (this.ik.missing.length) diag.step('ik', 'fail', `Chaînes IK incomplètes : ${this.ik.missing.join(', ')}`);
     this.headChain = resolveBones(root, model.headBones);
     this.spineChain = resolveBones(root, model.spineBones);
+    this.rig = new PoseRig(root);
+    if (this.rig.missing.length) diag.step('rig', 'fail', `Os de posture introuvables : ${this.rig.missing.join(', ')}`);
   }
 
-  /** @param gaze  décalages de regard (rad) fournis par la locomotion */
-  update(dt: number, inp: AnimInput, gaze: { head: number; spine: number }) {
-    const p = planAnimation(this.plan, inp, dt, this.cfg, this.nominalWalk, this.nominalRun);
+  /** @param gaze  décalages de regard (rad) fournis par la locomotion ; `pitch` : inclinaison verticale de la tête (rad, > 0 vers le bas) */
+  update(dt: number, inp: AnimInput, gaze: { head: number; spine: number; pitch?: number }) {
+    const post = this.posture;
+    const posed = !!post && (post.weight > 1e-3 || post.busy);
+    const p = planAnimation(this.plan, posed ? { realSpeed: 0, omega: 0, pivoting: false } : inp, dt, this.cfg, this.nominalWalk, this.nominalRun);
     const a = this.actions;
     a.idle.setEffectiveWeight(p.idleW); a.walk.setEffectiveWeight(p.walkW); a.run.setEffectiveWeight(p.runW);
     a.idle.setEffectiveTimeScale(p.idleRate); a.walk.setEffectiveTimeScale(p.walkRate); a.run.setEffectiveTimeScale(p.runRate);
@@ -131,21 +150,96 @@ export class AnimationController {
     this.mixer.update(dt);                       // 2. évaluation des clips
     this.root.updateMatrixWorld(true);           // 3. matrices du squelette
 
-    // 4. corrections APRÈS le mixeur : appuis (IK), puis épaules et tête (additif, recalculé à chaque image)
-    const ikOn = this.cfg.ik.clips;
-    const walkOk = ikOn.includes('walk') && p.walkW >= this.cfg.ik.minLocomotionWeight;
-    const runOk = ikOn.includes('run') && p.runW >= this.cfg.ik.minLocomotionWeight;
-    const clip: Slot | null = walkOk ? 'walk' : runOk ? 'run' : null;
-    const phase = clip ? (a[clip].time / this.durations[clip]) % 1 : 0;
-    this.ik.update(!!clip && !inp.pivoting && Math.abs(inp.omega) <= this.cfg.ik.maxOmega && p.locomoting, phase);
-    applyChain(this.spineChain, gaze.spine);
-    applyChain(this.headChain, gaze.head);
+    // 4. corrections APRÈS le mixeur : posture procédurale, appuis, puis épaules et tête (additif, recalculé à chaque image)
+    if (posed) {
+      this.rig.applyArray(post!.pose, post!.weight);
+      this.root.updateMatrixWorld(true);
+      this.rig.groundSolve(post!.weight);        // le bassin descend avec les membres fléchis : le corps ne traverse pas le sol et ne flotte pas
+      this.holdAnchors(post!);
+      this.groomContact(post!);
+      this.ik.update(false, 0, dt);
+    } else {
+      this.rig.groundShift = 0; this.anchorSeq = -1; this.groomGap = 0;
+      const ikOn = this.cfg.ik.clips;
+      const walkOk = ikOn.includes('walk') && p.walkW >= this.cfg.ik.minLocomotionWeight;
+      const runOk = ikOn.includes('run') && p.runW >= this.cfg.ik.minLocomotionWeight;
+      const clip: Slot | null = walkOk ? 'walk' : runOk ? 'run' : null;
+      const phase = clip ? (a[clip].time / this.durations[clip]) % 1 : 0;
+      this.ik.update(!!clip && (inp.pivoting || p.locomoting) && Math.abs(inp.omega) <= this.cfg.ik.maxOmega, phase, dt);
+    }
+    const gazeOk = !post || post.allowGaze;
+    const k = 1 - Math.exp(-dt / 0.25);
+    this.gazePitchNow += (((gazeOk ? gaze.pitch ?? 0 : 0)) - this.gazePitchNow) * k;
+    applyChain(this.spineChain, gazeOk ? gaze.spine : 0);
+    applyChain(this.headChain, gazeOk ? gaze.head : 0);
+    applyPitchChain(this.headChain, this.gazePitchNow, this.root);
     this.root.updateMatrixWorld(true);           // 5. matrices avant le rendu
+  }
+
+  /** Pieds tenus en coordonnées monde pendant une séquence (pas de glissement des appuis qui restent au sol). */
+  private holdAnchors(post: PostureController) {
+    const seq = post.seq;
+    if (!seq || !seq.def.anchors?.length) { this.anchorSeq = -1; return; }
+    if (this.anchorSeq !== seq.id) {                      // capture à la première image de la séquence, pose déjà appliquée
+      this.anchorSeq = seq.id;
+      this.anchorTargets = seq.def.anchors.map((n) => {
+        const key = n as 'handL' | 'handR' | 'footL2' | 'footR2';
+        const chainKeys = key === 'handL' ? FOX_RIG.forepaw.L : key === 'handR' ? FOX_RIG.forepaw.R : key === 'footL2' ? (['legL1', 'legL2', 'footL1', 'footL2'] as const) : (['legR1', 'legR2', 'footR1', 'footR2'] as const);
+        const chain = chainKeys.map((c) => this.rig.bones[c]);
+        const effector = chain[chain.length - 1];
+        return { chain, effector, target: effector.getWorldPosition(new THREE.Vector3()) };
+      });
+    }
+    // la contrainte se relâche pendant le dernier quart de la séquence : la pose finale reprend la main sans saut
+    const rel = 1 - Math.max(0, (seq.time / seq.duration - 0.78) / 0.22);
+    if (rel <= 0.01) return;
+    for (const t of this.anchorTargets) {
+      const cur = t.effector.getWorldPosition(this.tv);
+      this.tv2.copy(cur).lerp(t.target, rel);
+      solveChain(t.chain, t.effector, null, this.tv2, { iterations: 5, stepLimit: 0.5, maxJointDelta: 0.9 });
+    }
+    this.root.updateMatrixWorld(true);
+  }
+
+  /** Toilette : la patte se rapproche du museau et la tête de la patte, dans des limites articulaires. Écart mesuré en monde (cm). */
+  private groomContact(post: PostureController) {
+    if (post.state !== 'Grooming' || post.contact < 0.05) { this.groomGap = 0; return; }
+    const w = post.contact;
+    const muz = this.rig.muzzle(this.tv), pad = this.rig.pad('R', this.tv2);
+    this.groomGap = muz.distanceTo(pad) * 100;
+    // 1) la patte vient vers le museau (arrêt à ~1,5 cm : pas de traversée)
+    const pc = this.rig.bones.handR;
+    const dir = this.tv.clone().sub(this.tv2);
+    const reach = Math.max(0, dir.length() - 0.015) * w;
+    const target = this.tv2.clone().add(dir.normalize().multiplyScalar(reach));
+    const chainR = FOX_RIG.forepaw.R.map((c) => this.rig.bones[c]);
+    this.padOffset.set(FOX_RIG.padCm[0], FOX_RIG.padCm[1], FOX_RIG.padCm[2]).multiplyScalar(this.rig.cm);
+    this.rig.bones.handR.updateMatrixWorld(true);
+    const localPad = this.localOffset(this.rig.bones.handR, this.tv2);
+    solveChain(chainR, pc, localPad, target, { iterations: 5, stepLimit: 0.35, maxJointDelta: 0.5 });
+    this.root.updateMatrixWorld(true);
+    // 2) la tête s'incline légèrement vers la patte
+    const pad2 = this.rig.pad('R', this.tv2);
+    const headChain = [this.rig.bones.neck, this.rig.bones.head];
+    const headTarget = this.tv.copy(pad2);
+    const muz2 = this.rig.muzzle(this.tv);
+    const away = headTarget.clone().sub(muz2); const gap = away.length();
+    if (gap > 0.012) {
+      const t2 = muz2.clone().add(away.multiplyScalar((gap - 0.012) / gap * 0.6 * w));
+      const localMuz = this.localOffset(this.rig.bones.head, muz2);
+      solveChain(headChain, this.rig.bones.head, localMuz, t2, { iterations: 3, stepLimit: 0.15, maxJointDelta: 0.22 });
+      this.root.updateMatrixWorld(true);
+    }
+    this.groomGap = this.rig.muzzle(this.tv).distanceTo(this.rig.pad('R', this.tv2)) * 100;
+  }
+
+  private localOffset(bone: THREE.Object3D, world: THREE.Vector3) {
+    return bone.worldToLocal(world.clone());
   }
 
   debug(): AnimDebug {
     const p = this.plan;
     const active = p.idleW >= p.walkW && p.idleW >= p.runW ? 'repos' : p.runW > p.walkW ? 'course' : 'marche';
-    return { active, idleW: p.idleW, walkW: p.walkW, runW: p.runW, walkRate: p.walkRate, runRate: p.runRate, locomoting: p.locomoting, phase: (this.actions.walk.time / this.durations.walk) % 1, feet: this.ik.debug() };
+    return { active, idleW: p.idleW, walkW: p.walkW, runW: p.runW, walkRate: p.walkRate, runRate: p.runRate, locomoting: p.locomoting, phase: (this.actions.walk.time / this.durations.walk) % 1, feet: this.ik.debug(), posture: { state: this.posture?.state ?? 'StandingIdle', weight: this.posture?.weight ?? 0, groundShift: this.rig.groundShift * 100, groomGap: this.groomGap, anchored: (this.posture?.anchors ?? []) as string[], contact: this.posture?.contact ?? 0 } };
   }
 }

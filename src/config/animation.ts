@@ -41,6 +41,9 @@ export interface FootIKConfig {
   stepLimit: number;
   /** En dessous de cette vitesse angulaire (rad/s), pas d'IK (réorientation sur place). */
   maxOmega: number;
+  /** Pas de rattrapage quand le pied dépasse sa portée (virages) : durée (s) et hauteur de levée (m). 0 = simple relâchement. */
+  stepDuration: number;
+  stepLift: number;
 }
 
 export const DEFAULT_ANIMATION: AnimationConfig = {
@@ -59,13 +62,15 @@ export const DEFAULT_ANIMATION: AnimationConfig = {
   ik: {
     enabled: true,
     clips: ['walk'],
-    minLocomotionWeight: 0.6,
+    minLocomotionWeight: 0.45,
     rise: 0.12,
     fall: 0.28,
     maxCorrection: 0.085,
     maxJointDelta: 0.55,
     iterations: 4,
     stepLimit: 0.4,
-    maxOmega: 1.6,
+    maxOmega: 3,
+    stepDuration: 0.12,
+    stepLift: 0.02,
   },
 };

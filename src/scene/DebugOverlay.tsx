@@ -10,6 +10,8 @@ export function DebugOverlay() {
   const line = useRef<THREE.Line>(null);
   const arrive = useRef<THREE.Mesh>(null);
   const plants = useRef<THREE.Group>(null);
+  const marks = useRef<THREE.Group>(null);
+  const markGeo = useMemo(() => new THREE.SphereGeometry(0.01, 10, 8), []);
   const poiGroup = useRef<THREE.Group>(null);
   const lineGeo = useMemo(() => new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), []);
   const sphere = useMemo(() => new THREE.SphereGeometry(0.012, 8, 6), []);
@@ -33,6 +35,11 @@ export function DebugOverlay() {
       while (g.children.length < list.length) g.add(new THREE.Mesh(ringGeo, poiMat));
       g.children.forEach((c, i) => { c.visible = i < list.length; if (i < list.length) { c.position.set(list[i].x, 0.011, list[i].z); c.rotation.x = -Math.PI / 2; c.scale.setScalar(list[i].r); } });
     }
+    if (marks.current) {
+      const list = overlayData.markers, g = marks.current;
+      while (g.children.length < list.length) g.add(new THREE.Mesh(markGeo, new THREE.MeshBasicMaterial({ color: '#fff', depthTest: false })));
+      g.children.forEach((c, i) => { c.visible = i < list.length; if (i < list.length) { c.position.set(list[i].x, list[i].y, list[i].z); ((c as THREE.Mesh).material as THREE.MeshBasicMaterial).color.set(list[i].color); c.renderOrder = 10; } });
+    }
     if (plants.current) {
       const list = overlayData.plants;
       while (plants.current.children.length < list.length) plants.current.add(new THREE.Mesh(sphere, plantMat));
@@ -49,6 +56,7 @@ export function DebugOverlay() {
       </mesh>
       <primitive object={lineObj} ref={line} />
       <group ref={plants} />
+      <group ref={marks} />
     </group>
   );
 }
