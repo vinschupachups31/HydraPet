@@ -271,8 +271,8 @@ export class BehaviorController {
       }
       if (cands.length) {
         const last = this.recent[this.recent.length - 1];
-        const others = cands.filter((c) => c.poi.id !== last);
-        if (others.length) cands.splice(0, cands.length, ...others); // jamais deux fois de suite la même destination
+        cands.splice(0, cands.length, ...cands.filter((c) => c.poi.id !== last)); // jamais deux fois de suite la même destination (sinon : pas de trajet, il reste là)
+        if (!cands.length) continue;
         let tot = 0; for (const c of cands) tot += c.w;
         let r = rng() * tot;
         for (const c of cands) { r -= c.w; if (r <= 0) return c; }
