@@ -110,9 +110,9 @@ export const DEFAULT_BEHAVIOR: BehaviorConfig = {
   activities: DEFAULT_ACTIVITIES,
 
   pois: [
-    { id: 'rug-center', label: 'Tapis', zone: 'mid', x: 0.1, xn: 0.05, z: 0.15, radius: 0.35, weight: 3, cooldown: 18, activities: ['observe', 'rest', 'sit', 'groom', 'sleep'] },
+    { id: 'rug-center', label: 'Tapis', zone: 'mid', x: 0.1, xn: 0.05, z: 0.15, radius: 0.35, weight: 3, cooldown: 18, activities: ['observe', 'rest', 'sit', 'sleep'] },
     { id: 'rug-left', label: 'Tapis (gauche)', zone: 'mid', x: -0.4, xn: -0.55, z: 0.4, radius: 0.3, weight: 2, cooldown: 20, activities: ['observe', 'rest', 'sit', 'groom', 'sleep'] },
-    { id: 'center', label: 'Centre de la pièce', zone: 'mid', x: 0.05, xn: 0.1, z: -0.4, radius: 0.35, weight: 2.2, cooldown: 15, activities: ['observe', 'examine', 'sit', 'groom'], lookAt: { x: 0.95, z: -1.3 } },
+    { id: 'center', label: 'Centre de la pièce', zone: 'mid', x: 0.05, xn: 0.1, z: -0.4, radius: 0.35, weight: 2.2, cooldown: 15, activities: ['observe', 'examine', 'sit'], lookAt: { x: 0.95, z: -1.3 } },
     { id: 'sofa-front', label: 'Devant le canapé', zone: 'mid', x: 0.45, z: -0.6, radius: 0.28, weight: 2.4, cooldown: 25, activities: ['examine', 'observe', 'sit'], lookAt: { x: 0.95, z: -1.3 } },
     { id: 'left-edge', label: 'Bord gauche', zone: 'mid', x: -0.75, xn: -0.85, z: -0.05, radius: 0.25, weight: 1.3, cooldown: 25, activities: ['observe', 'examine', 'sit', 'sleep'], lookAt: { x: -2.1, z: -0.4 } },
     { id: 'back-edge', label: 'Fond de la pièce', zone: 'back', x: -0.3, xn: -0.5, z: -1.2, radius: 0.3, weight: 1.4, cooldown: 30, activities: ['observe', 'examine', 'sit', 'sleep'], lookAt: { x: -0.3, z: -1.8 } },

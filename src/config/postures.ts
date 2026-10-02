@@ -43,7 +43,27 @@ export const POSES: Record<string, Pose> = {
     armL: [40, 0, 0], armR: [-17, 3.6, 0], foreR: [-71, 0, 0], handR: [20, 0, 0],
     ...both([-20, 0, 0], 'legL1', 'legR1'), ...both([84, 0, 0], 'legL2', 'legR2'), ...both([-95, 0, 0], 'footL1', 'footR1'), ...both([76, 0, 0], 'footL2', 'footR2'), tail1: [78, 0, 0],
   }),
+  /** Toilette, joue : patte au niveau de la joue, tête tournée vers elle (ajustée par optimisation dans le banc de pose, écart patte↔point 1,8 cm). */
+  groomCheek: P({
+    hip: [-40, 0, 0], neck: [22, 10, 26], head: [32.8, 10, -22.1],
+    armL: [40, 0, 0], armR: [-27, 3.6, 0], foreR: [-81, 0, 0], handR: [20, 0, 0],
+    ...both([-20, 0, 0], 'legL1', 'legR1'), ...both([84, 0, 0], 'legL2', 'legR2'), ...both([-95, 0, 0], 'footL1', 'footR1'), ...both([76, 0, 0], 'footL2', 'footR2'), tail1: [78, 0, 0],
+  }),
+  /** Toilette, derrière l'oreille : la patte monte le long de la joue, la tête s'incline vers elle. */
+  groomEar: P({
+    hip: [-40, 0, 0], neck: [32, 20, 10], head: [50, 21.3, -6.3],
+    armL: [40, 0, 0], armR: [-27, -10, 0], foreR: [-71, 0, 0], handR: [42.2, 0, 0],
+    ...both([-20, 0, 0], 'legL1', 'legR1'), ...both([84, 0, 0], 'legL2', 'legR2'), ...both([-95, 0, 0], 'footL1', 'footR1'), ...both([76, 0, 0], 'footL2', 'footR2'), tail1: [78, 0, 0],
+  }),
 };
+
+/** Pose miroir (patte gauche au lieu de droite) : os gauche ↔ droit, roulis et lacet inversés. */
+const SWAP: Partial<Record<BoneKey, BoneKey>> = { armL: 'armR', armR: 'armL', foreL: 'foreR', foreR: 'foreL', handL: 'handR', handR: 'handL', legL1: 'legR1', legR1: 'legL1', legL2: 'legR2', legR2: 'legL2', footL1: 'footR1', footR1: 'footL1', footL2: 'footR2', footR2: 'footL2' };
+export function mirrorPose(p: Pose): Pose {
+  const r: Partial<Record<BoneKey, Euler3>> = {};
+  for (const k of Object.keys(p.r) as BoneKey[]) { const e = p.r[k]!; r[SWAP[k] ?? k] = [e[0], -e[1], -e[2]]; }
+  return { r, hip: p.hip ? [-p.hip[0], p.hip[1], p.hip[2]] : undefined };
+}
 
 // ---------------------------------------------------------------------------------------- mélanges
 const GROUPS: Record<'rear' | 'front' | 'head', BoneKey[]> = {

@@ -328,7 +328,8 @@ export class BehaviorController {
       if (k === 'sleep' && (this.time < (t.warmup ?? 0) || this.walkedSeconds < (t.minWalked ?? 0))) continue;
       if (this.d.rng() >= t.chance) continue;
       const room = this.roomFor(k);
-      if (!this.hasRoom(room.r, room.key)) {                                   // pas la place ici (meuble, bord du cadre) : il rejoint d'abord une zone adaptée
+      const tooFar = k === 'groom' && this.d.loco.s.z < this.d.cfg.activities.groomMinZ; // la toilette se fait assez près de la caméra pour être lisible
+      if (tooFar || !this.hasRoom(room.r, room.key)) {                                   // pas la place ici (meuble, bord du cadre) : il rejoint d'abord une zone adaptée
         if (k !== 'stretch' && this.startSpotTrip(k)) return null;
         continue;
       }
@@ -364,6 +365,7 @@ export class BehaviorController {
       const c = resolvePoi(poi, area.view, cfg.viewEdgeMargin);
       if (!area.isFree(c.x, c.z, r, true, cfg.viewEdgeMargin * 0.5)) continue;
       if (g && g.bestHeading(c.x, c.z, key, loco.s.heading) === null) continue;
+      if (kind === 'groom' && c.z < cfg.activities.groomMinZ) continue;
       if (Math.hypot(c.x - s.x, c.z - s.z) < cfg.minTripDistance) continue;
       if (!area.segmentFree(s.x, s.z, c.x, c.z, cfg.bodyRadius * 1.2)) continue;
       if (g && !g.pathFits(s.x, s.z, c.x, c.z)) continue;
@@ -430,6 +432,13 @@ export class BehaviorController {
   }
 
   private restTarget: number | null = null;
+  /** Patte de la toilette : celle du côté tourné vers la caméra, pour que le geste soit lisible. */
+  private groomSide(): 'L' | 'R' {
+    const s = this.d.loco.s, cam = this.d.cameraXZ();
+    const cx = cam.x - s.x, cz = cam.z - s.z;
+    const right = -Math.cos(s.heading) * cx + Math.sin(s.heading) * cz; // composante de la direction de la caméra sur la droite de l'animal
+    return right >= 0 ? 'R' : 'L';
+  }
   private startPosture(kind: PostureActivity) {
     const { posture } = this.d;
     if (kind === 'sit' || kind === 'groom') { this.phase = 'enter'; posture.request('sit'); }
@@ -469,13 +478,13 @@ export class BehaviorController {
         else if (this.phase === 'exit' && settled('stand')) this.finishActivity();
         break;
       case 'groom':
-        if (this.phase === 'enter' && settled('sit')) { this.completedMark = P.completed; this.groomRounds++; this.setPhase('groom'); P.groom(); }
+        if (this.phase === 'enter' && settled('sit')) { this.completedMark = P.completed; this.groomRounds++; this.setPhase('groom'); P.groom(this.groomSide()); }
         else if (this.phase === 'groom' && !P.busy && P.completed > this.completedMark) this.setPhase('pause', this.range(a.observeHold));     // patte reposée : il observe brièvement
         else if (this.phase === 'pause') {
           this.glance([1.5, 3]);
           if (this.stateTime >= this.stateDuration) {
             this.d.loco.clearLook();
-            if (this.groomRounds < 2 && rng() < a.groomRepeat) { this.completedMark = P.completed; this.groomRounds++; this.setPhase('groom'); P.groom(); }
+            if (this.groomRounds < 2 && rng() < a.groomRepeat) { this.completedMark = P.completed; this.groomRounds++; this.setPhase('groom'); P.groom(this.groomSide()); }
             else { this.setPhase('exit'); P.request('stand'); }
           }
         } else if (this.phase === 'exit' && settled('stand')) this.finishActivity();
@@ -514,7 +523,7 @@ export class BehaviorController {
     if (this.state === 'walk' || this.state === 'approach') { this.d.loco.stop(); }
     this.planned = null;
     const room = this.roomFor(kind as PostureActivity);
-    if (!this.hasRoom(room.r, room.key)) { if (this.startSpotTrip(kind)) return; this.log(`${kind} : aucune zone adaptée accessible`); return; }
+    if (!this.hasRoom(room.r, room.key) || (kind === 'groom' && this.d.loco.s.z < this.d.cfg.activities.groomMinZ)) { if (this.startSpotTrip(kind)) return; this.log(`${kind} : aucune zone adaptée accessible`); return; }
     if (!this.beginActivity(kind)) { this.pending = { force: kind }; this.enterObserve([0.8, 1.2], false); this.log(`${kind} : en attente de l'arrêt complet`); }
   }
 

@@ -203,36 +203,41 @@ export class AnimationController {
     this.root.updateMatrixWorld(true);
   }
 
-  /** Toilette : la patte se rapproche du museau et la tête de la patte, dans des limites articulaires. Écart mesuré en monde (cm). */
+  /** Point de la tête visé par la patte (museau, joue, oreille), côté de la patte utilisée. */
+  private facePointWorld(post: PostureController, out: THREE.Vector3) {
+    const c = post.facePoint, flip = post.groomSide === 'L' ? -1 : 1;
+    this.fp[0] = c[0] * flip; this.fp[1] = c[1]; this.fp[2] = c[2];
+    return this.rig.headPoint(this.fp, out);
+  }
+  private fp = [0, 0, 0];
+
+  /** Toilette : la patte se rapproche du point visé et la tête de la patte, dans des limites articulaires. Écart mesuré en monde (cm). */
   private groomContact(post: PostureController) {
     if (post.state !== 'Grooming' || post.contact < 0.05) { this.groomGap = 0; return; }
-    const w = post.contact;
-    const muz = this.rig.muzzle(this.tv), pad = this.rig.pad('R', this.tv2);
-    this.groomGap = muz.distanceTo(pad) * 100;
-    // 1) la patte vient vers le museau (arrêt à ~1,5 cm : pas de traversée)
-    const pc = this.rig.bones.handR;
+    const w = post.contact, side = post.groomSide;
+    const hand = this.rig.bones[side === 'R' ? 'handR' : 'handL'];
+    const chain = FOX_RIG.forepaw[side].map((c) => this.rig.bones[c]);
+    const pt = this.facePointWorld(post, this.tv), pad = this.rig.pad(side, this.tv2);
+    this.groomGap = pt.distanceTo(pad) * 100;
+    // 1) la patte vient vers le point visé (arrêt à ~1,5 cm : pas de traversée)
     const dir = this.tv.clone().sub(this.tv2);
     const reach = Math.max(0, dir.length() - 0.015) * w;
     const target = this.tv2.clone().add(dir.normalize().multiplyScalar(reach));
-    const chainR = FOX_RIG.forepaw.R.map((c) => this.rig.bones[c]);
-    this.padOffset.set(FOX_RIG.padCm[0], FOX_RIG.padCm[1], FOX_RIG.padCm[2]).multiplyScalar(this.rig.cm);
-    this.rig.bones.handR.updateMatrixWorld(true);
-    const localPad = this.localOffset(this.rig.bones.handR, this.tv2);
-    solveChain(chainR, pc, localPad, target, { iterations: 5, stepLimit: 0.35, maxJointDelta: 0.5 });
+    const localPad = this.localOffset(hand, this.rig.pad(side, this.tv2));
+    solveChain(chain, hand, localPad, target, { iterations: 5, stepLimit: 0.35, maxJointDelta: 0.5 });
     this.root.updateMatrixWorld(true);
     // 2) la tête s'incline légèrement vers la patte
-    const pad2 = this.rig.pad('R', this.tv2);
+    const pad2 = this.rig.pad(side, this.tv2);
     const headChain = [this.rig.bones.neck, this.rig.bones.head];
-    const headTarget = this.tv.copy(pad2);
-    const muz2 = this.rig.muzzle(this.tv);
-    const away = headTarget.clone().sub(muz2); const gap = away.length();
+    const pt2 = this.facePointWorld(post, this.tv);
+    const away = pad2.clone().sub(pt2); const gap = away.length();
     if (gap > 0.012) {
-      const t2 = muz2.clone().add(away.multiplyScalar((gap - 0.012) / gap * 0.6 * w));
-      const localMuz = this.localOffset(this.rig.bones.head, muz2);
-      solveChain(headChain, this.rig.bones.head, localMuz, t2, { iterations: 3, stepLimit: 0.15, maxJointDelta: 0.22 });
+      const t2 = pt2.clone().add(away.multiplyScalar((gap - 0.012) / gap * 0.6 * w));
+      const localPt = this.localOffset(this.rig.bones.head, pt2);
+      solveChain(headChain, this.rig.bones.head, localPt, t2, { iterations: 3, stepLimit: 0.15, maxJointDelta: 0.22 });
       this.root.updateMatrixWorld(true);
     }
-    this.groomGap = this.rig.muzzle(this.tv).distanceTo(this.rig.pad('R', this.tv2)) * 100;
+    this.groomGap = this.facePointWorld(post, this.tv).distanceTo(this.rig.pad(side, this.tv2)) * 100;
   }
 
   private localOffset(bone: THREE.Object3D, world: THREE.Vector3) {

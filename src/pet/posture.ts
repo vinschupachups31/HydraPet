@@ -3,7 +3,8 @@
  *  Une seule séquence à la fois : jamais deux transitions de posture superposées. Les ordres sont des BUTS (`request`) ;
  *  le contrôleur enchaîne lui-même les étapes (ex. endormi → couché → assis → debout). Aucun timer ni callback : tout avance dans `update(dt)`. */
 import { BoneKey, FOX_BONES } from '../config/foxRig';
-import { EDGES, POSES, Posture, PostureState, SEQUENCES, SequenceDef, blend } from '../config/postures';
+import { EDGES, POSES, Posture, PostureState, SEQUENCES, SequenceDef, blend, mirrorPose } from '../config/postures';
+import { FOX_RIG } from '../config/foxRig';
 import { Pose, compilePose, newPoseArray, POSE_SIZE } from './rig';
 import { Rng } from './rng';
 
@@ -20,6 +21,8 @@ interface ActiveSeq {
   t: number[];
   w: number[];
   contact: number[];
+  /** Point de contact visé sur la tête par clé (cm, côté droit) : museau, joue, oreille. */
+  pt: Float64Array[];
   duration: number;
   time: number;
   /** Index des clés où un geste se termine et où l'on peut interrompre (toilette). */
@@ -27,6 +30,9 @@ interface ActiveSeq {
   abortAtKey: number;
 }
 
+const MUZZLE = new Float64Array(FOX_RIG.facePointsCm.muzzle);
+const CHEEK = new Float64Array(FOX_RIG.facePointsCm.cheek);
+const EAR = new Float64Array(FOX_RIG.facePointsCm.ear);
 const compiled = new Map<SequenceDef, ActiveSeq['arr']>();
 const compile = (d: SequenceDef) => { let c = compiled.get(d); if (!c) { c = d.keys.map((k) => compilePose(k.pose)); compiled.set(d, c); } return c; };
 const POSE_ARR = Object.fromEntries(Object.entries(POSES).map(([k, p]) => [k, compilePose(p)]));
@@ -42,7 +48,7 @@ export interface PostureCfg {
 export const DEFAULT_POSTURE: PostureCfg = {
   breath: { sit: { amp: 0.5, hz: 0.3 }, lie: { amp: 0.7, hz: 0.3 }, sleep: { amp: 1.1, hz: 0.27 } },
   sleepTwitch: [6, 14],
-  groom: { series: [2, 3], licks: [2, 4], lickGap: [0.26, 0.44], pause: [0.5, 1.1], wipeChance: 0.6 },
+  groom: { series: [2, 2], licks: [2, 4], lickGap: [0.26, 0.44], pause: [0.5, 1.1], wipeChance: 0.6 },
 };
 
 export class PostureController {
@@ -60,6 +66,9 @@ export class PostureController {
   time = 0;
   /** Part de « contact patte-museau » demandée par la séquence (toilette), 0..1. */
   contact = 0;
+  /** Point de la tête (cm, repère de la tête, côté droit) que la patte vise pendant la toilette, et côté de la patte utilisée. */
+  readonly facePoint = new Float64Array(FOX_RIG.facePointsCm.muzzle);
+  groomSide: 'L' | 'R' = 'R';
   /** Le regard autonome peut agir (pas pendant le sommeil, la toilette ni les transitions). */
   allowGaze = true;
   /** Dernière séquence terminée : nom et temps. */
@@ -70,6 +79,7 @@ export class PostureController {
   private nextTwitchAt = 0;
   private twitchT = -1;
   private pending: 'stretch' | 'groom' | null = null;
+  private pendingSide: 'L' | 'R' = 'R';
   private groomAbort = false;
 
   constructor(private rng: Rng, private cfg: PostureCfg = DEFAULT_POSTURE) {
@@ -102,9 +112,9 @@ export class PostureController {
   }
 
   /** Toilette : seulement assis et immobile. */
-  groom(): boolean {
+  groom(side: 'L' | 'R' = 'R'): boolean {
     if (this.seq || this.posture !== 'sit' || this.goal !== 'sit') return false;
-    this.pending = 'groom';
+    this.pending = 'groom'; this.pendingSide = side;
     return true;
   }
 
@@ -118,8 +128,8 @@ export class PostureController {
     // les clés après le point sûr sont remplacées par un retour direct à l'assise (patte reposée)
     const lowerFrom = s.arr[next], dur = 0.8;
     const sit = POSE_ARR.sit;
-    s.arr.length = next + 1; s.t.length = next + 1; s.w.length = next + 1; s.contact.length = next + 1;
-    s.arr.push(blend2(lowerFrom, sit, 0.5), sit); s.t.push(s.t[next] + dur * 0.5, s.t[next] + dur); s.w.push(1, 1); s.contact.push(0, 0);
+    s.arr.length = next + 1; s.t.length = next + 1; s.w.length = next + 1; s.contact.length = next + 1; s.pt.length = next + 1;
+    s.arr.push(blend2(lowerFrom, sit, 0.5), sit); s.t.push(s.t[next] + dur * 0.5, s.t[next] + dur); s.w.push(1, 1); s.contact.push(0.3, 0); s.pt.push(s.pt[next], s.pt[next]);
     s.duration = s.t[s.t.length - 1];
     this.note('toilette interrompue : fin du geste, patte reposée');
   }
@@ -142,9 +152,9 @@ export class PostureController {
     return out;
   }
 
-  private start(def: Pick<SequenceDef, 'name' | 'from' | 'to' | 'anchors'>, arr: Float64Array[], keys: { t: number; w: number; contact?: number }[], safe: number[] = []) {
+  private start(def: Pick<SequenceDef, 'name' | 'from' | 'to' | 'anchors'>, arr: Float64Array[], keys: { t: number; w: number; contact?: number; pt?: Float64Array }[], safe: number[] = []) {
     this.seqId++;
-    this.seq = { id: this.seqId, def, arr, t: keys.map((k) => k.t), w: keys.map((k) => k.w), contact: keys.map((k) => k.contact ?? 0), duration: keys[keys.length - 1].t, time: 0, safe, abortAtKey: -1 };
+    this.seq = { id: this.seqId, def, arr, t: keys.map((k) => k.t), w: keys.map((k) => k.w), contact: keys.map((k) => k.contact ?? 0), pt: keys.map((k) => k.pt ?? MUZZLE), duration: keys[keys.length - 1].t, time: 0, safe, abortAtKey: -1 };
     this.state = def.name;
     this.groomAbort = false;
     this.note(`${def.name} (${def.from}→${def.to})`);
@@ -156,34 +166,43 @@ export class PostureController {
     this.start(def, compile(def), def.keys);
   }
 
+  /** Toilette lisible : assis → la patte monte au museau → séries de 2–4 léchages (tête + patte, approximation : ni langue ni mâchoire) →
+   *  la patte remonte le long de la joue jusque derrière l'oreille et redescend → pause → 2–3 séries → la patte est reposée.
+   *  Chaque clé porte le point de la tête que la patte vise ; la correction de contact (animation.ts) l'y maintient à ~1,5 cm. */
   private startGroom() {
-    const g = this.cfg.groom, up = POSES.groomUp, sit = POSES.sit;
-    const arr: Float64Array[] = [POSE_ARR.sit], keys: { t: number; w: number; contact?: number }[] = [{ t: 0, w: 1 }], safe: number[] = [];
-    const add = (p: Pose | Float64Array, t: number, contact = 0) => { arr.push(p instanceof Float64Array ? p : compilePose(p)); keys.push({ t, w: 1, contact }); };
-    let t = 0.5;
-    add(blend(sit, up, { rear: 0, front: 0.75, head: 0.3 }), t, 0.2);                 // la patte se lève
+    const g = this.cfg.groom, side = this.pendingSide, flip = (p: Pose) => (side === 'L' ? mirrorPose(p) : p);
+    const sit = POSES.sit, up = flip(POSES.groomUp), cheek = flip(POSES.groomCheek), ear = flip(POSES.groomEar);
+    this.groomSide = side;
+    const arr: Float64Array[] = [POSE_ARR.sit], keys: { t: number; w: number; contact?: number; pt?: Float64Array }[] = [{ t: 0, w: 1 }], safe: number[] = [];
+    const add = (p: Pose | Float64Array, t: number, contact = 0, pt: Float64Array = MUZZLE) => { arr.push(p instanceof Float64Array ? p : compilePose(p)); keys.push({ t, w: 1, contact, pt }); };
+    let t = 0.4;
+    add(blend(sit, up, { rear: 0, front: 0.2, head: 0.05 }), t, 0.0);                  // préparation : le poids se stabilise, la tête se baisse un peu
+    t += 0.9; add(blend(sit, up, { rear: 0, front: 0.8, head: 0.4 }), t, 0.3);         // la patte se lève
     t += 0.7; add(up, t, 1);                                                          // contre le museau
     safe.push(arr.length - 1);
     const series = Math.round(this.range(g.series));
     for (let s = 0; s < series; s++) {
       const licks = Math.round(this.range(g.licks));
-      for (let l = 0; l < licks; l++) {                                               // séries de petits gestes irréguliers (approximation : tête et patte, sans langue)
-        const amp = 0.5 + this.rng() * 0.6;
-        t += this.range(g.lickGap) * 0.5; add(lickPose(up, amp), t, 1);
-        t += this.range(g.lickGap) * 0.5; add(up, t, 1);
+      for (let l = 0; l < licks; l++) {                                               // petits gestes irréguliers : la tête descend sur la patte, la patte pivote
+        const amp = 0.7 + this.rng() * 0.5;
+        t += this.range(g.lickGap); add(lickPose(up, amp), t, 1);
+        t += this.range(g.lickGap); add(up, t, 1);
         safe.push(arr.length - 1);
       }
-      if (this.rng() < g.wipeChance) {                                                // la patte passe sur le visage
-        t += 0.5; add(wipePose(up, 1), t, 0.7);
-        t += 0.55; add(wipePose(up, -0.4), t, 0.7);
-        t += 0.4; add(up, t, 1);
+      if (this.rng() < g.wipeChance) {                                                // la patte passe sur le visage : joue → derrière l'oreille → retour
+        t += 0.55; add(cheek, t, 1, CHEEK);
+        t += 0.6; add(ear, t, 1, EAR);
+        t += 0.3; add(lickPose(ear, 0.5), t, 1, EAR);                                  // frotte derrière l'oreille
+        t += 0.3; add(ear, t, 1, EAR);
+        t += 0.6; add(cheek, t, 1, CHEEK);
+        t += 0.5; add(up, t, 1);
         safe.push(arr.length - 1);
       }
-      t += this.range(g.pause); add(up, t, 0.8);                                      // pause entre deux séries
+      t += this.range(g.pause); add(up, t, 0.9);                                      // pause, la patte reste près du museau
       safe.push(arr.length - 1);
     }
-    t += 0.5; add(blend(sit, up, { rear: 0, front: 0.5, head: 0.4 }), t, 0.2);        // la patte redescend
-    t += 0.6; add(sit, t, 0);
+    t += 0.6; add(blend(sit, up, { rear: 0, front: 0.5, head: 0.4 }), t, 0.3);        // la patte redescend
+    t += 0.7; add(sit, t, 0);
     this.start({ name: 'Grooming', from: 'sit', to: 'sit', anchors: [] }, arr, keys, safe);
   }
 
@@ -234,6 +253,8 @@ export class PostureController {
     for (let j = 0; j < POSE_SIZE; j++) this.pose[j] = a[j] + (b[j] - a[j]) * u;
     this.weight = s.w[i] + (s.w[i + 1] - s.w[i]) * u;
     this.contact = s.contact[i] + (s.contact[i + 1] - s.contact[i]) * u;
+    const pa = s.pt[i], pb = s.pt[i + 1];
+    for (let j = 0; j < 3; j++) this.facePoint[j] = pa[j] + (pb[j] - pa[j]) * u;
     // la respiration continue pendant les séquences calmes
     this.addBreath(1);
   }
@@ -274,17 +295,10 @@ export class PostureController {
 
 function blend2(a: Float64Array, b: Float64Array, t: number): Float64Array { const o = newPoseArray(); for (let i = 0; i < POSE_SIZE; i++) o[i] = a[i] + (b[i] - a[i]) * t; return o; }
 
-/** Petit léchage : la tête s'abaisse un peu plus et la patte pivote légèrement (approximation, le modèle n'a ni langue ni mâchoire). */
+/** Petit léchage : la tête s'abaisse un peu plus sur la patte et la patte pivote légèrement (approximation, le modèle n'a ni langue ni mâchoire). */
 function lickPose(up: Pose, amp: number): Pose {
   const r = { ...up.r };
-  const h = up.r.head ?? [0, 0, 0], n = up.r.neck ?? [0, 0, 0], hand = up.r.handR ?? [0, 0, 0];
-  r.head = [h[0] + 7 * amp, h[1], h[2]]; r.neck = [n[0] + 3 * amp, n[1], n[2]]; r.handR = [hand[0] + 9 * amp, hand[1], hand[2]];
-  return { r, hip: up.hip };
-}
-/** Passage de la patte sur le visage (derrière l'oreille puis retour) : balayage de l'avant-bras avec la tête qui s'incline. */
-function wipePose(up: Pose, dir: number): Pose {
-  const r = { ...up.r };
-  const a = up.r.armR ?? [0, 0, 0], f = up.r.foreR ?? [0, 0, 0], h = up.r.head ?? [0, 0, 0];
-  r.armR = [a[0] - 12 * dir, a[1] + 6 * dir, a[2]]; r.foreR = [f[0] - 22 * dir, f[1], f[2]]; r.head = [h[0] - 6 * dir, h[1], h[2] + 7 * dir];
+  const h = up.r.head ?? [0, 0, 0], n = up.r.neck ?? [0, 0, 0], hand = up.r.handR ?? up.r.handL ?? [0, 0, 0], hk = (up.r.handR ? 'handR' : 'handL') as BoneKey;
+  r.head = [h[0] + 9 * amp, h[1], h[2]]; r.neck = [n[0] + 4 * amp, n[1], n[2]]; r[hk] = [hand[0] + 11 * amp, hand[1], hand[2]];
   return { r, hip: up.hip };
 }

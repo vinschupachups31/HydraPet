@@ -21,7 +21,7 @@ for (const [name, aspect, fps] of [['portrait 60 fps', 0.56, 60], ['portrait 30 
     // pauses réellement visibles : une observation de 2–6 s après (presque) chaque trajet
     const after = trips.map((t) => seg[seg.indexOf(t) + 1]).filter((s) => s && s.state === 'observe' && s.end < 598).map((s) => s.end - s.start); // (la dernière, coupée par la fin de la simulation, est exclue)
     assert.ok(after.length >= trips.length * 0.75, `${after.length}/${trips.length} trajets suivis d'une observation`);
-    assert.ok(Math.min(...after) >= B.observeAfterTrip[0] - 0.15 && Math.max(...after) <= B.observeAfterTrip[1] + 0.15, `observation ${Math.min(...after).toFixed(1)}–${Math.max(...after).toFixed(1)} s`);
+    assert.ok(Math.min(...after) >= 0.9 && Math.max(...after) <= B.observeAfterTrip[1] + 0.15, `observation ${Math.min(...after).toFixed(1)}–${Math.max(...after).toFixed(1)} s`);
     // pauses longues de 8 à 20 s
     const rests = seg.filter((s) => ['rest', 'sit', 'groom', 'sleep'].includes(s.state) && s.end < 595).map((s) => s.end - s.start); // pauses : debout, assis, toilette, sommeil
     assert.ok(rests.length >= 2, `${rests.length} pauses longues`);

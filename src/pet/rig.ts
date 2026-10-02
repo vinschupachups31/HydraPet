@@ -136,21 +136,23 @@ export class PoseRig {
     return out.set(cm[0] * this.cm, cm[1] * this.cm, cm[2] * this.cm).applyMatrix4(this.bones[key].matrixWorld);
   }
 
-  /** Position monde du bout du museau (repère de la tête en pose de liage, suit la tête). */
-  muzzle(out: THREE.Vector3) {
+  /** Point lié à la tête (offset en cm dans les axes du modèle en pose de liage, ex. museau, joue, oreille) en monde : il suit l'os de la tête. */
+  headPoint(cm: ArrayLike<number>, out: THREE.Vector3) {
     const head = this.bones.head;
-    // le décalage est donné dans les axes du modèle en pose de liage : on le ramène au repère de l'os de la tête
     _qa.copy(this.parentBindQ.head).multiply(this.restQ.head).invert();
-    _v.set(FOX_RIG.muzzleCm[0] * this.cm, FOX_RIG.muzzleCm[1] * this.cm, FOX_RIG.muzzleCm[2] * this.cm).applyQuaternion(_qa);
+    _v.set(cm[0] * this.cm, cm[1] * this.cm, cm[2] * this.cm).applyQuaternion(_qa);
     return out.copy(_v).applyMatrix4(head.matrixWorld);
   }
+
+  /** Position monde du bout du museau. */
+  muzzle(out: THREE.Vector3) { return this.headPoint(FOX_RIG.muzzleCm, out); }
 
   /** Coussinet de la patte avant (haut du pied, devant le poignet), en monde. */
   pad(side: 'L' | 'R', out: THREE.Vector3) {
     const hand = FOX_RIG.forepaw[side][2];
     const b = this.bones[hand];
     _qa.copy(this.parentBindQ[hand]).multiply(this.restQ[hand]).invert();
-    _v.set(FOX_RIG.padCm[0] * this.cm, FOX_RIG.padCm[1] * this.cm, FOX_RIG.padCm[2] * this.cm).applyQuaternion(_qa);
+    _v.set(FOX_RIG.padCm[0], FOX_RIG.padCm[1], FOX_RIG.padCm[2]).multiplyScalar(this.cm).applyQuaternion(_qa);
     return out.copy(_v).applyMatrix4(b.matrixWorld);
   }
 }

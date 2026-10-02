@@ -19,6 +19,8 @@ export const FOX_RIG = {
   refScale: 0.0046,
   /** Bout du museau dans le repère de la tête en pose de liage (cm) : tête à (0, 27,9, 16,6) → nez à (0, 24,7, 30,6). */
   muzzleCm: [0, -3.2, 14.0] as [number, number, number],
+  /** Points de contact de la toilette sur la tête, côté droit (cm, repère de la tête en pose de liage ; le côté gauche inverse x). */
+  facePointsCm: { muzzle: [0, -3.2, 14.0], cheek: [-4.6, -1.2, 7.5], ear: [-4.4, 8.6, 5.5] } as Record<'muzzle' | 'cheek' | 'ear', [number, number, number]>,
   /** Pattes avant : os de la main et chaîne, pour la toilette. */
   forepaw: { L: ['armL', 'foreL', 'handL'], R: ['armR', 'foreR', 'handR'] } as Record<'L' | 'R', BoneKey[]>,
   /** Coussinet de la patte avant dans le repère de la main (cm) : sous et devant le poignet. */

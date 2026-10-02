@@ -35,6 +35,8 @@ export interface ActivityConfig {
   groomRepeat: number;
   /** Espace libre nécessaire autour d'un lieu de sommeil (m) : corps couché + queue. */
   sleepClearance: number;
+  /** Profondeur minimale (z, m) pour une toilette : assez près de la caméra pour que le geste soit lisible. */
+  groomMinZ: number;
   /** Rayon libre nécessaire pour s'asseoir/faire sa toilette (m). */
   sitClearance: number;
 }
@@ -63,6 +65,7 @@ export const DEFAULT_ACTIVITIES: ActivityConfig = {
   groomRepeat: 0.4,
   sleepClearance: 0.36,
   sitClearance: 0.3,
+  groomMinZ: 0.45,
 };
 
 /** Spécification des états de comportement (documentation vérifiée par les tests) : entrée, durée, interruption, pose de sortie, successeurs, cooldown, reprise. */

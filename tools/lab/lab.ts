@@ -48,14 +48,14 @@ lab.show = (o: { padSide?: 'L' | 'R'; pose?: Pose; w?: number; view?: string; gr
 };
 
 /** Ajustement par descente de coordonnées : cherche les angles (dans leurs bornes) qui amènent le coussinet au museau (distance cible en cm), avec un faible rappel vers la pose de départ. */
-(lab as any).fit = (o: { pose: Pose; free: [string, number, number, number][]; side: 'L' | 'R'; target: number; reg?: number; iters?: number }) => {
+(lab as any).fit = (o: { pose: Pose; free: [string, number, number, number][]; side: 'L' | 'R'; target: number; reg?: number; iters?: number; point?: number[] }) => {
   const pose: Pose = JSON.parse(JSON.stringify(o.pose));
   const p = new THREE.Vector3(), m = new THREE.Vector3();
   const base = o.free.map(([b, i]) => ((pose.r as any)[b] ?? [0, 0, 0])[i]);
   const cost = () => {
     mixer.stopAllAction(); const a = mixer.clipAction(THREE.AnimationClip.findByName(clips, 'Survey')!); a.play(); mixer.setTime(0); root.updateMatrixWorld(true);
     rig.apply(pose, 1); root.updateMatrixWorld(true); rig.groundSolve(1);
-    rig.pad(o.side, p); rig.muzzle(m);
+    rig.pad(o.side, p); if (o.point) rig.headPoint(o.point, m); else rig.muzzle(m);
     const d = p.distanceTo(m) * 100;
     let reg = 0; o.free.forEach(([b, i], k) => { reg += (((pose.r as any)[b][i] - base[k]) / 60) ** 2; });
     return Math.abs(d - o.target) + (o.reg ?? 0.4) * reg;
@@ -67,6 +67,6 @@ lab.show = (o: { padSide?: 'L' | 'R'; pose?: Pose; w?: number; view?: string; gr
     o.free.forEach(([b, i, lo, hi]) => { for (const sgn of [1, -1]) { const arr = (pose.r as any)[b]; const old = arr[i]; arr[i] = Math.max(lo, Math.min(hi, old + sgn * step)); const c = cost(); if (c < best - 1e-6) { best = c; improved = true; } else arr[i] = old; } });
     if (!improved) step *= 0.6; if (step < 0.3) break;
   }
-  cost(); rig.pad(o.side, p); rig.muzzle(m);
+  cost(); rig.pad(o.side, p); if (o.point) rig.headPoint(o.point, m); else rig.muzzle(m);
   return { pose, dist: +(p.distanceTo(m) * 100).toFixed(2), cost: best };
 };
