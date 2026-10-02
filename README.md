@@ -72,3 +72,5 @@ npm run analyze -- assets/models/fox.glb   # clips, os, vitesse de marche d'un m
 ```
 - Déplacements autonomes, cadrage, glissement des pieds : voir [docs/LOCOMOTION.md](docs/LOCOMOTION.md)
 - Comportements de chat, appuis et inventaire du modèle : voir [docs/BEHAVIORS.md](docs/BEHAVIORS.md)
+- Appuis, cadre, couchage, toilette (diagnostic, mesures, limites) : [docs/APPUIS_CADRE_TOILETTE.md](docs/APPUIS_CADRE_TOILETTE.md) · profil de modèle / futur chat : [docs/MODEL_PROFILE.md](docs/MODEL_PROFILE.md)
+- Appuis, cadre, couchage, toilette (diagnostic, mesures, limites) : [docs/APPUIS_CADRE_TOILETTE.md](docs/APPUIS_CADRE_TOILETTE.md) · profil de modèle / futur chat : [docs/MODEL_PROFILE.md](docs/MODEL_PROFILE.md)

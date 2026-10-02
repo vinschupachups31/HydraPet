@@ -47,7 +47,7 @@ export const DEFAULT_ACTIVITIES: ActivityConfig = {
     demo: {
       sit: { chance: 0.22, cooldown: 25, minTrips: 1, hold: [6, 12] },
       groom: { chance: 0.3, cooldown: 30, minTrips: 2, hold: [0, 0] },
-      sleep: { chance: 0.45, cooldown: 60, minTrips: 2, hold: [20, 60], minWalked: 12, warmup: 25 },
+      sleep: { chance: 0.4, cooldown: 90, minTrips: 3, hold: [20, 60], minWalked: 20, warmup: 50 },
       stretch: { chance: 0.15, cooldown: 40, minTrips: 1, hold: [0, 0] },
     },
     production: {

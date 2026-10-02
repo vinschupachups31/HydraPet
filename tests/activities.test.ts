@@ -155,6 +155,7 @@ for (const [name, aspect, seeds] of [['portrait', 0.56, [1, 7, 11]], ['paysage',
         const st = sim.behavior.state;
         const s = sim.loco.s;
         if (st === 'approach' || st === 'react') { visiting = true; continue; }             // venir devant la caméra est volontaire
+        if (st === 'walk' && sim.behavior.poi === null) continue; // trajet correctif (retour dans la zone sûre) : il part d'une position déjà hors zone
         if (visiting) { if (g.fitsAnyHeading(s.x, s.z, 'walk', 0.06)) visiting = false; else continue; } // retour de visite : marche normale jusqu'à la zone
         total++;
         for (const k of keyOf(sim.posture.state, sim.loco.realSpeed > 0.1)) if (!g.fitsPose(s.x, s.z, s.heading, k, 0.06)) { bad++; worst = `${st}/${sim.posture.state} ${k} (${s.x.toFixed(2)}, ${s.z.toFixed(2)})`; break; }
