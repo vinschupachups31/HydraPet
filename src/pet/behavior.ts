@@ -6,10 +6,11 @@ import { WalkArea, resolvePoi, zoneOf } from './layout';
 import { PostureActivity } from '../config/activities';
 import { LocomotionController } from './locomotor';
 import { PostureController } from './posture';
+import type { EnvelopeKey } from './frameGuard';
 import { Rng } from './rng';
 
 export type BehaviorState = 'observe' | 'choose' | 'walk' | 'examine' | 'rest' | 'approach' | 'react' | PostureActivity;
-export type PostureActivityPhase = 'enter' | 'hold' | 'groom' | 'pause' | 'wake' | 'awake' | 'rise' | 'stretch' | 'exit';
+export type PostureActivityPhase = 'turn' | 'enter' | 'hold' | 'groom' | 'pause' | 'wake' | 'awake' | 'rise' | 'stretch' | 'exit';
 type Pending = null | 'call' | 'touch' | { force: PostureActivity | 'observe' };
 
 export interface BehaviorEvent { t: number; state: BehaviorState; poi: string | null; detail: string }
@@ -53,6 +54,7 @@ export class BehaviorController {
   pending: Pending = null;
 
   private planned: PostureActivity | null = null;
+  private lastReturnTry = -1e9;
   private lastEnd: Partial<Record<PostureActivity, number>> = {};
   private lastActivity: PostureActivity | null = null;
   private tripsSincePosture = 0;
@@ -155,8 +157,9 @@ export class BehaviorController {
     L.clearLook();
     const yaw = Math.atan2(target.x - L.s.x, target.z - L.s.z);
     const off = Math.abs(((yaw - L.s.heading + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI);
-    if (off > this.gazeLimit) L.faceYaw(yaw); // hors des limites du cou : le corps se tourne d'abord, progressivement
-    else { L.lookAt(target.x, target.z); this.examineFaced = true; }
+    const g = this.d.area.guard;
+    if (off > this.gazeLimit && (!g || g.fitsPose(L.s.x, L.s.z, yaw, 'stand'))) L.faceYaw(yaw); // hors des limites du cou : le corps se tourne d'abord, progressivement (seulement si, tourné, il reste dans le cadre)
+    else { this.lookClamped(target.x, target.z, 0); this.examineFaced = true; }
     this.lookTarget = target;
     this.log('examine');
   }
@@ -262,6 +265,7 @@ export class BehaviorController {
         if (!area.isFree(x, z, cfg.bodyRadius, true, cfg.viewEdgeMargin)) continue;       // espace libre autour du corps, dans le champ
         if (Math.hypot(x - s.x, z - s.z) < cfg.minTripDistance) continue;                  // pas de trajet minuscule
         if (!area.segmentFree(s.x, s.z, x, z, cfg.bodyRadius * 1.2)) continue;             // pas de meuble sur le chemin (marge pour les arcs de virage)
+        if (area.guard && !(area.guard.fitsDestination(x, z, Math.atan2(x - s.x, z - s.z)) && area.guard.pathFits(s.x, s.z, x, z))) continue; // compagnon entier dans le cadre, destination ET chemin
         const w = poi.weight * cfg.zoneWeights[poi.zone] * this.recentFactor(poi.id);
         if (w > 0) cands.push({ poi, x, z, w });
       }
@@ -323,42 +327,81 @@ export class BehaviorController {
       if (this.tripsSincePosture < t.minTrips) continue;
       if (k === 'sleep' && (this.time < (t.warmup ?? 0) || this.walkedSeconds < (t.minWalked ?? 0))) continue;
       if (this.d.rng() >= t.chance) continue;
-      if (k === 'sleep' && !this.hasRoom(this.d.cfg.activities.sleepClearance)) {
-        if (this.startSleepTrip()) return null;                                // il rejoint d'abord un lieu de repos
+      const room = this.roomFor(k);
+      if (!this.hasRoom(room.r, room.key)) {                                   // pas la place ici (meuble, bord du cadre) : il rejoint d'abord une zone adaptée
+        if (k !== 'stretch' && this.startSpotTrip(k)) return null;
         continue;
       }
-      if ((k === 'sit' || k === 'groom') && !this.hasRoom(this.d.cfg.activities.sitClearance)) continue;
       return k;
     }
     return null;
   }
 
-  private hasRoom(r: number) {
-    const s = this.d.loco.s;
-    return this.d.area.isFree(s.x, s.z, r, false) ;
+  /** Place pour la pose COMPLÈTE (corps, tête, queue) ici : sans meuble à moins de `r`, et entièrement dans la zone sûre quel que soit le cap. */
+  private hasRoom(r: number, key: EnvelopeKey) { return this.restHeading(r, key) !== null; }
+
+  /** Cap à prendre (rad) pour la pose complète à cet endroit : le cap actuel s'il convient, sinon le plus proche qui tient dans le cadre ; null = pas de place. */
+  private restHeading(r: number, key: EnvelopeKey, prefer = this.d.loco.s.heading, x = this.d.loco.s.x, z = this.d.loco.s.z): number | null {
+    const g = this.d.area.guard;
+    if (!this.d.area.isFree(x, z, r, false)) return null;
+    return g ? g.bestHeading(x, z, key, prefer) : prefer;
   }
 
-  /** Lieu de repos accessible : point d'intérêt « sommeil » avec assez d'espace pour le corps couché et la queue, chemin libre. */
-  private startSleepTrip(): boolean {
+  private roomFor(k: PostureActivity): { r: number; key: EnvelopeKey } {
+    const a = this.d.cfg.activities;
+    return k === 'sleep' ? { r: a.sleepClearance, key: 'sleep' } : k === 'stretch' ? { r: a.sitClearance, key: 'stretch' } : { r: a.sitClearance, key: k === 'groom' ? 'groom' : 'sit' };
+  }
+
+  /** Lieu adapté à l'activité : point d'intérêt compatible avec assez d'espace pour la pose COMPLÈTE (meubles, bords du cadre, tête, queue),
+   *  chemin libre ET dans le cadre. Le compagnon le rejoint en marchant, puis s'installe (jamais de téléportation). */
+  private startSpotTrip(kind: PostureActivity): boolean {
     const { cfg, area, rng, loco } = this.d;
-    const clear = cfg.activities.sleepClearance, s = loco.s;
+    const { r, key } = this.roomFor(kind), s = loco.s, g = area.guard;
     const spots: { poi: PointOfInterest; x: number; z: number; w: number }[] = [];
     for (const poi of cfg.pois) {
-      if (!poi.activities.includes('sleep') || (this.cooldownUntil.get(poi.id) ?? 0) > this.time) continue;
+      const okAct = kind === 'stretch' || poi.activities.includes(kind);
+      if (!okAct || (this.cooldownUntil.get(poi.id) ?? 0) > this.time) continue;
       const c = resolvePoi(poi, area.view, cfg.viewEdgeMargin);
-      if (!area.isFree(c.x, c.z, clear, true, cfg.viewEdgeMargin * 0.5)) continue;
+      if (!area.isFree(c.x, c.z, r, true, cfg.viewEdgeMargin * 0.5)) continue;
+      if (g && g.bestHeading(c.x, c.z, key, loco.s.heading) === null) continue;
       if (Math.hypot(c.x - s.x, c.z - s.z) < cfg.minTripDistance) continue;
       if (!area.segmentFree(s.x, s.z, c.x, c.z, cfg.bodyRadius * 1.2)) continue;
+      if (g && !g.pathFits(s.x, s.z, c.x, c.z)) continue;
       spots.push({ poi, x: c.x, z: c.z, w: poi.weight });
     }
     if (!spots.length) return false;
+    const lastId = this.recent[this.recent.length - 1], others = spots.filter((p) => p.poi.id !== lastId);
+    if (others.length) spots.splice(0, spots.length, ...others); // pas deux fois de suite la même destination
     let tot = 0; for (const p of spots) tot += p.w;
-    let r = rng() * tot, pick = spots[spots.length - 1];
-    for (const p of spots) { r -= p.w; if (r <= 0) { pick = p; break; } }
-    this.planned = 'sleep';
+    let rr = rng() * tot, pick = spots[spots.length - 1];
+    for (const p of spots) { rr -= p.w; if (rr <= 0) { pick = p; break; } }
+    this.planned = kind;
     this.cooldownUntil.set(pick.poi.id, this.time + pick.poi.cooldown);
+    this.recent.push(pick.poi.id); if (this.recent.length > 3) this.recent.shift();
     this.enterWalk({ x: pick.x, z: pick.z }, pick.poi, 'walk');
-    this.log(`trajet vers le lieu de repos ${pick.poi.id}`);
+    this.log(`trajet vers un lieu adapté (${kind}) : ${pick.poi.id}`);
+    return true;
+  }
+
+  /** Hors de la zone sûre (ou pose impossible ici) : retour par un déplacement normal vers le point valide le plus proche. */
+  private returnToFrame(): boolean {
+    const { cfg, area, loco } = this.d, g = area.guard, s = loco.s;
+    if (!g) return false;
+    let best: { x: number; z: number; d: number } | null = null;
+    const consider = (x: number, z: number) => {
+      const d = Math.hypot(x - s.x, z - s.z);
+      if (d < 0.15 || (best && d >= best.d)) return;
+      if (!area.isFree(x, z, cfg.bodyRadius, false) || !g.fitsDestination(x, z, Math.atan2(x - s.x, z - s.z))) return;
+      if (!area.segmentFree(s.x, s.z, x, z, cfg.bodyRadius * 1.2)) return;
+      best = { x, z, d };
+    };
+    for (const poi of cfg.pois) { const c = resolvePoi(poi, area.view, cfg.viewEdgeMargin); consider(c.x, c.z); }
+    for (let gx = -1.2; gx <= 1.2; gx += 0.15) for (let gz = -0.6; gz <= 1.5; gz += 0.15) consider(gx, gz); // grille : le point valide le plus proche
+    if (!best) return false;
+    const b = best as { x: number; z: number };
+    this.planned = null;
+    this.enterWalk(b, null, 'walk');
+    this.log('retour dans la zone sûre du cadre');
     return true;
   }
 
@@ -373,11 +416,25 @@ export class BehaviorController {
     this.tripsInRow = 0;
     this.lastActivity = kind;
     this.groomRounds = 0;
+    // cap d'installation : la pose complète doit tenir dans le cadre ; pour la toilette on préfère un trois-quarts face à la caméra (patte et museau lisibles)
+    const room = this.roomFor(kind);
+    const cam = this.d.cameraXZ(), toCam = Math.atan2(cam.x - loco.s.x, cam.z - loco.s.z);
+    const prefer = kind === 'groom' ? toCam + 0.9 : loco.s.heading;
+    const rh = this.restHeading(room.r, room.key, prefer);
+    this.restTarget = rh;
+    const off = rh === null ? 0 : Math.abs(((rh - loco.s.heading + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI);
+    if (rh !== null && off > 0.2) { loco.faceYaw(rh); this.phase = 'turn'; }               // vrai virage progressif avant de s'installer
+    else this.startPosture(kind);
+    this.log(`activité : ${kind}`);
+    return true;
+  }
+
+  private restTarget: number | null = null;
+  private startPosture(kind: PostureActivity) {
+    const { posture } = this.d;
     if (kind === 'sit' || kind === 'groom') { this.phase = 'enter'; posture.request('sit'); }
     else if (kind === 'sleep') { this.phase = 'enter'; posture.request('sleep'); }
     else { this.phase = 'stretch'; posture.stretch(); this.completedMark = posture.completed; }
-    this.log(`activité : ${kind}`);
-    return true;
   }
 
   private setPhase(ph: PostureActivityPhase, duration = 0) { this.phase = ph; this.phaseTime = 0; if (duration > 0) { this.stateTime = 0; this.stateDuration = duration; } }
@@ -401,6 +458,10 @@ export class BehaviorController {
     const a = cfg.activities;
     this.phaseTime += d;
     const settled = (pose: 'stand' | 'sit' | 'lie' | 'sleep') => P.posture === pose && !P.busy && P.goal === pose;
+    if (this.phase === 'turn') {                                                    // orientation stabilisée avant de s'asseoir/se coucher
+      if (this.d.loco.status === 'faced' || this.phaseTime > 6) { this.d.loco.stop(); if (this.d.loco.realSpeed < 0.05 || this.phaseTime > 6) this.startPosture(this.state as PostureActivity); }
+      return;
+    }
     switch (this.state) {
       case 'sit':
         if (this.phase === 'enter' && settled('sit')) this.setPhase('hold', this.range(this.tuning('sit').hold));
@@ -444,7 +505,8 @@ export class BehaviorController {
     if (kind === 'observe') { this.enterObserve([2, 6], false); return; }
     if (this.state === 'walk' || this.state === 'approach') { this.d.loco.stop(); }
     this.planned = null;
-    if (kind === 'sleep' && !this.hasRoom(this.d.cfg.activities.sleepClearance)) { if (this.startSleepTrip()) return; this.log('sommeil : aucun lieu de repos accessible'); return; }
+    const room = this.roomFor(kind as PostureActivity);
+    if (!this.hasRoom(room.r, room.key)) { if (this.startSpotTrip(kind)) return; this.log(`${kind} : aucune zone adaptée accessible`); return; }
     if (!this.beginActivity(kind)) { this.pending = { force: kind }; this.enterObserve([0.8, 1.2], false); this.log(`${kind} : en attente de l'arrêt complet`); }
   }
 
@@ -478,6 +540,10 @@ export class BehaviorController {
     this.decisionAcc += d;
     if (this.decisionAcc >= 1 / cfg.decisionHz) {
       this.decisionAcc = 0;
+      if ((this.state === 'observe' || this.state === 'rest') && this.autonomy && !this.d.posture.busy && this.d.posture.posture === 'stand' && loco.realSpeed < 0.05 && this.stateTime > 0.8 && this.d.area.guard && this.time - this.lastReturnTry > 3 && !this.d.area.guard.fitsPose(loco.s.x, loco.s.z, loco.s.heading, 'stand', 0.015)) {
+        this.lastReturnTry = this.time;
+        if (this.returnToFrame()) return;
+      }
       if (this.time >= this.nextApproachAt && this.approachAllowed()) {
         if (this.d.rng() < cfg.approach.chance) this.enterApproach(false);
         else this.nextApproachAt = this.time + this.range(cfg.approach.every);
@@ -490,7 +556,7 @@ export class BehaviorController {
         if (this.stateTime >= this.stateDuration) {
           const pf = this.pending;
           if (pf && typeof pf === 'object') { this.pending = null; this.force(pf.force); break; } // ordre de test en attente de l'arrêt complet
-          if (!this.autonomy) { this.stateTime = 0; break; }
+          if (!this.autonomy && !this.planned) { this.stateTime = 0; break; }
           this.decideAfterObserve();
         }
         break;

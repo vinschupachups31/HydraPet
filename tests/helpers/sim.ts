@@ -4,16 +4,18 @@ import { FOX_STANDIN } from '../../src/config/pet';
 import { DEFAULT_TURN } from '../../src/config/turning';
 import { BehaviorController, BehaviorState } from '../../src/pet/behavior';
 import { computeFraming } from '../../src/pet/framing';
+import { FrameGuard } from '../../src/pet/frameGuard';
 import { OBSTACLES, WalkArea } from '../../src/pet/layout';
 import { LocomotionController } from '../../src/pet/locomotor';
 import { PostureController } from '../../src/pet/posture';
 import { mulberry32 } from '../../src/pet/rng';
 
-export function makeSim(opts: { seed?: number; aspect?: number; cfg?: BehaviorConfig; x?: number; z?: number } = {}) {
+export function makeSim(opts: { seed?: number; aspect?: number; cfg?: BehaviorConfig; x?: number; z?: number; guard?: boolean } = {}) {
   const cfg = opts.cfg ?? DEFAULT_BEHAVIOR;
   const framing = computeFraming(opts.aspect ?? 0.56, cfg.approach.z);
   const area = new WalkArea(OBSTACLES);
   area.view = framing;
+  if (opts.guard !== false) area.guard = new FrameGuard(() => framing);
   const nominalWalk = CLIP_DATA.Walk.nominalSpeed * FOX_STANDIN.scale, nominalRun = CLIP_DATA.Run.nominalSpeed * FOX_STANDIN.scale;
   const turn = { ...DEFAULT_TURN, vWalk: nominalWalk, vRun: nominalRun, arriveRadius: cfg.arrive.radius };
   const loco = new LocomotionController(turn, area, cfg.bodyRadius, cfg.stall, opts.x ?? 0, opts.z ?? 0.3, 0, cfg.arrive.hysteresis, 0.06);
@@ -24,7 +26,7 @@ export function makeSim(opts: { seed?: number; aspect?: number; cfg?: BehaviorCo
     approachPoint: () => framing.approach,
     cameraXZ: () => ({ x: framing.position[0], z: framing.position[2] }),
   });
-  return { cfg, framing, area, loco, behavior, posture, step(dt: number) { behavior.update(dt); loco.update(dt); posture.update(dt); } };
+  return { cfg, framing, guard: area.guard, area, loco, behavior, posture, step(dt: number) { behavior.update(dt); loco.update(dt); posture.update(dt); } };
 }
 
 export interface Frame { t: number; state: BehaviorState; phase: string | null; poi: string | null; x: number; z: number; speed: number; dur: number; zone: string; status: string }

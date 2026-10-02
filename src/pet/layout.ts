@@ -1,6 +1,7 @@
 /** Géométrie de la pièce : sol, obstacles, zones de profondeur, accessibilité (corps entier, pas seulement le centre). */
 import { Zone } from '../config/behavior';
 import { ROOM } from '../config/pet';
+import type { FrameGuard } from './frameGuard';
 
 export interface Box { id: string; minX: number; maxX: number; minZ: number; maxZ: number }
 
@@ -24,6 +25,8 @@ export function resolvePoi(poi: { x: number; z: number; xn?: number }, view: Vie
 
 export class WalkArea {
   view: ViewLimits | null = null;
+  /** Zone sûre à l'écran : le compagnon entier doit y tenir (voir frameGuard.ts). */
+  guard: FrameGuard | null = null;
   constructor(public obstacles: Box[] = OBSTACLES, public floor = FLOOR) {}
 
   /** Distance d'un point à une boîte (0 si dedans). */

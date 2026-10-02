@@ -31,3 +31,31 @@ export const DEFAULT_FRAMING: FramingConfig = {
   far: 30,
   devClose: { position: [0, 0.3, 2.1], target: [0, 0.2, 0.25], fov: 26 },
 };
+
+/** Zone sûre à l'écran (coordonnées normalisées, origine en haut à gauche) : le compagnon entier doit y tenir, dans la pose attendue. */
+export interface SafeZoneConfig {
+  /** Marge latérale (6–10 %), plus faible en paysage où l'écran est large. */
+  sidePortrait: number;
+  sideLandscape: number;
+  /** Marge haute. */
+  top: number;
+  /** Bas utile (commandes en dessous) : portrait / paysage. */
+  bottomPortrait: number;
+  bottomLandscape: number;
+  /** Rectangles couverts par l'interface (x0, y0, x1, y1) : le compagnon ne doit pas y passer. */
+  uiRects: { x0: number; y0: number; x1: number; y1: number }[];
+  /** Rotations testées pour une destination (la pose finale peut être orientée autrement que le trajet) : décalages de cap en rad. */
+  headingSpread: number[];
+  /** Tolérance (part de l'écran) pour les caps balayés pendant un pivot : le corps de côté peut entrer dans la marge, pas sortir de l'écran. */
+  turnGrow: number;
+}
+export const DEFAULT_SAFE_ZONE: SafeZoneConfig = {
+  sidePortrait: 0.06,
+  sideLandscape: 0.06,
+  top: 0.06,
+  bottomPortrait: 0.8,
+  bottomLandscape: 0.66,
+  uiRects: [{ x0: 0.72, y0: 0, x1: 1, y1: 0.13 }], // bouton « Menu » du prototype
+  headingSpread: [0, Math.PI / 2, -Math.PI / 2],
+  turnGrow: 0.045,
+};

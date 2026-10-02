@@ -12,6 +12,7 @@ import { diag } from '../diag/diagStore';
 import { AnimationController } from './animation';
 import { BehaviorController } from './behavior';
 import { debugStore } from './debugStore';
+import { FrameGuard } from './frameGuard';
 import { Framing } from './framing';
 import { WalkArea, resolvePoi } from './layout';
 import { LocomotionController } from './locomotor';
@@ -54,6 +55,7 @@ export function Pet({ config, source, framing }: Props) {
     const turn = { ...DEFAULT_TURN, vWalk: anim.nominalWalk, vRun: anim.nominalRun, arriveRadius: bcfg.arrive.radius, ...config.turn };
     const area = new WalkArea();
     area.view = { halfWidthAt: (z) => framingRef.current.halfWidthAt(z), get maxZ() { return framingRef.current.maxZ; } };
+    area.guard = new FrameGuard(() => framingRef.current);
     const loco = new LocomotionController(turn, area, bcfg.bodyRadius, bcfg.stall, 0, 0.3, 0, bcfg.arrive.hysteresis, animCfg.speedSmoothing);
     const posture = new PostureController(rng);
     anim.posture = posture;

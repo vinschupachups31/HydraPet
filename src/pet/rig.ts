@@ -99,6 +99,14 @@ export class PoseRig {
     }
   }
 
+  /** Sommets extrêmes du maillage (monde) : pour l'extraction d'enveloppes par pose et les tests de contact. */
+  hullWorld(out: THREE.Vector3[]) {
+    this.root.updateMatrixWorld(true);
+    out.length = 0;
+    for (const { bone, p } of this.hullPts) out.push(p.clone().applyMatrix4(bone.matrixWorld));
+    return out;
+  }
+
   /** Point le plus bas du maillage (m, monde). Sommets extrêmes par os : suffisant pour tenir le corps au-dessus du sol. */
   lowestY(): number {
     this.root.updateMatrixWorld(true);

@@ -142,3 +142,46 @@ test('autonomie 10 min : marche, observation, repos et activités posturales se 
   for (let i = 1; i < acts.length; i++) assert.notEqual(acts[i], acts[i - 1], `répétition immédiate de ${acts[i]}`);
   assert.ok(seq.filter((s) => s === 'walk').length >= 5, 'il marche encore');
 });
+
+// ---------------------------------------------------------------- cadre
+for (const [name, aspect, seeds] of [['portrait', 0.56, [1, 7, 11]], ['paysage', 1.78, [2, 5]]] as const) {
+  test(`cadre (${name}) : le compagnon n'est jamais coupé par le bord, destinations et chemins compris, 10 min d'autonomie`, () => {
+    const keyOf = (st: string, moving: boolean) => (st === 'Sleeping' || st === 'PreparingSleep' ? ['sleep'] : st === 'Lying' || st === 'LyingDown' ? ['lie', 'sit'] : st === 'SittingIdle' || st === 'SittingDown' || st === 'StandingUp' ? ['sit', 'stand'] : st === 'Grooming' ? ['groom'] : st === 'Stretching' ? ['stretch'] : st === 'WakingUp' ? ['sleep', 'lie'] : [moving ? 'walk' : 'stand']) as ('sleep' | 'lie' | 'sit' | 'stand' | 'groom' | 'stretch' | 'walk')[];
+    for (const seed of seeds) {
+      const sim = makeSim({ seed, aspect }); const g = sim.guard!;
+      let bad = 0, returns = 0, total = 0, visiting = false; let worst = '';
+      for (let i = 0; i < 60 * 600; i++) {
+        sim.step(1 / 60);
+        const st = sim.behavior.state;
+        const s = sim.loco.s;
+        if (st === 'approach' || st === 'react') { visiting = true; continue; }             // venir devant la caméra est volontaire
+        if (visiting) { if (g.fitsAnyHeading(s.x, s.z, 'walk', 0.06)) visiting = false; else continue; } // retour de visite : marche normale jusqu'à la zone
+        total++;
+        for (const k of keyOf(sim.posture.state, sim.loco.realSpeed > 0.1)) if (!g.fitsPose(s.x, s.z, s.heading, k, 0.06)) { bad++; worst = `${st}/${sim.posture.state} ${k} (${s.x.toFixed(2)}, ${s.z.toFixed(2)})`; break; }
+      }
+      returns = sim.behavior.events.filter((e) => e.detail.startsWith('retour dans')).length;
+      assert.ok(bad / total < 0.002, `${name} graine ${seed} : ${bad}/${total} images coupées (dernier : ${worst}) ; retours : ${returns}`);
+    }
+  });
+}
+
+test('déjà hors de la zone sûre : il revient en marchant (sans téléportation)', () => {
+  const sim = makeSim({ seed: 3, aspect: 0.56, x: -0.8, z: 0.4 }); const g = sim.guard!;
+  assert.equal(g.fitsPose(-0.8, 0.4, 0, 'stand'), false, 'point de départ hors zone');
+  let maxJump = 0, px = sim.loco.s.x, pz = sim.loco.s.z;
+  const t = until(sim, () => { const s = sim.loco.s; maxJump = Math.max(maxJump, Math.hypot(s.x - px, s.z - pz)); px = s.x; pz = s.z; return sim.behavior.events.some((e) => e.detail.startsWith('retour dans')) && g.fitsPose(s.x, s.z, s.heading, 'stand') && sim.loco.realSpeed < 0.05; }, 60);
+  assert.ok(t < 60, 'revenu dans la zone');
+  assert.ok(maxJump < 0.02, `déplacement maximal par image ${maxJump}`);
+});
+
+test('sommeil / toilette : la pose complète est vérifiée avant de commencer ; sinon il rejoint d\'abord une zone adaptée', () => {
+  const sim = makeSim({ seed: 3, aspect: 0.56, x: -0.55, z: 0.3 }); const g = sim.guard!;
+  assert.equal(g.bestHeading(-0.55, 0.3, 'sleep', 0), null);
+  sim.behavior.autonomy = false;
+  until(sim, () => sim.behavior.state === 'observe' && sim.behavior.stateTime > 0.5, 30);
+  sim.behavior.force('sleep');
+  let slept = false, pose = '';
+  until(sim, () => { if (sim.posture.state !== 'StandingIdle' && !slept) { slept = true; pose = `${sim.loco.s.x.toFixed(2)},${sim.loco.s.z.toFixed(2)}`; } return sim.behavior.phase === 'hold'; }, 90);
+  assert.equal(sim.behavior.phase, 'hold');
+  assert.ok(g.fitsPose(sim.loco.s.x, sim.loco.s.z, sim.loco.s.heading, 'sleep'), `il dort là où la pose entière tient (${pose})`);
+});
