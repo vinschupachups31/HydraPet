@@ -4,6 +4,7 @@
 import { BehaviorConfig, PointOfInterest, Zone } from '../config/behavior';
 import { WalkArea, resolvePoi, zoneOf } from './layout';
 import { PostureActivity } from '../config/activities';
+import { ACTIVE_PROFILE } from '../config/modelProfile';
 import { LocomotionController } from './locomotor';
 import { PostureController } from './posture';
 import type { EnvelopeKey } from './frameGuard';
@@ -322,6 +323,7 @@ export class BehaviorController {
     const order: PostureActivity[] = ['sleep', 'groom', 'sit', 'stretch'];
     for (const k of order) {
       const t = this.tuning(k);
+      if (ACTIVE_PROFILE.capabilities[k] === 'none') continue;                // capacité non déclarée par le modèle
       if (k === this.lastActivity) continue;                                   // jamais deux fois la même activité d'affilée
       if (this.time - (this.lastEnd[k] ?? -1e9) < t.cooldown) continue;
       if (this.tripsSincePosture < t.minTrips) continue;

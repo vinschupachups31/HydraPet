@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from 'react';
 
 /** Réglages d'affichage de développement (jamais utilisés pour le jeu normal). */
-export interface ViewState { devClose: boolean; devSide: boolean; overlay: boolean; info: boolean }
-let state: ViewState = { devClose: false, devSide: false, overlay: false, info: false };
+export interface ViewState { devClose: boolean; devSide: boolean; devThree: boolean; overlay: boolean; info: boolean }
+let state: ViewState = { devClose: false, devSide: false, devThree: false, overlay: false, info: false };
 const listeners = new Set<() => void>();
 export const viewStore = {
   get: () => state,

@@ -3,8 +3,8 @@
  *  autour de l'axe avant, lacet autour de la verticale) à partir de la pose de liage. Les angles s'additionnent donc le long d'une chaîne.
  *  À appeler APRÈS `mixer.update` : le mixeur réécrit les os à chaque image, rien ne s'accumule. */
 import * as THREE from 'three';
-import { BoneKey, FOX_RIG } from '../config/foxRig';
-import { FOX_HULL } from '../config/foxHull';
+import { BoneKey } from '../config/foxRig';
+import { ACTIVE_PROFILE, ModelProfile } from '../config/modelProfile';
 
 export type Euler3 = [number, number, number]; // tangage, roulis, lacet (degrés). Tangage > 0 : ce qui pointe vers l'avant descend.
 export interface Pose {
@@ -16,6 +16,7 @@ export interface Pose {
 const D2R = Math.PI / 180;
 const _q = new THREE.Quaternion(), _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _v = new THREE.Vector3(), _w = new THREE.Vector3(), _e = new THREE.Euler();
 
+const FOX_RIG = ACTIVE_PROFILE.rig, FOX_HULL = ACTIVE_PROFILE.hull; // (le profil actif décrit les os, les sommets extrêmes et les repères de contact)
 const BONE_ORDER = Object.keys(FOX_RIG.bones) as BoneKey[];
 /** Une pose « à plat » : 3 angles par os dans l'ordre du squelette, puis 3 valeurs pour le bassin (cm). Aucune allocation à l'exécution. */
 export const POSE_SIZE = BONE_ORDER.length * 3 + 3;
@@ -43,7 +44,7 @@ export class PoseRig {
   /** Décalage vertical appliqué par le sol (m) : debug. */
   groundShift = 0;
 
-  constructor(private root: THREE.Object3D) {
+  constructor(private root: THREE.Object3D, readonly profile: ModelProfile = ACTIVE_PROFILE) {
     this.unit = root.scale.x || 1;
     this.cm = FOX_RIG.refScale * 100 > 0 ? 1 / (FOX_RIG.refScale * 100) : 1; // 1 cm = 1/(0,46) unités
     // Pose de liage lue dans les matrices inverses de la peau : indépendante de l'état d'animation du modèle au moment de la construction.

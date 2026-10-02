@@ -1,5 +1,6 @@
 /** Contrat d'un animal : fichier, échelle, noms des clips, vitesses mesurées (voir tools/analyze-clips.mjs). */
 import { CLIP_DATA } from './foxClips';
+import { FOX_PROFILE } from './modelProfile';
 import { FootChainDef } from '../pet/footIK';
 import { TurnConfig } from './turning';
 
@@ -30,7 +31,7 @@ export interface PetModelConfig {
 export const FOX_STANDIN: PetModelConfig = {
   id: 'fox-standin',
   label: 'Renard (stand-in)',
-  scale: 0.0046,
+  scale: FOX_PROFILE.scale,
   yawOffset: 0,
   clips: { idle: 'Survey', walk: 'Walk', run: 'Run' },
   groundSpeed: { walk: CLIP_DATA.Walk.nominalSpeed, run: CLIP_DATA.Run.nominalSpeed }, // métadonnées extraites du clip (u/s)

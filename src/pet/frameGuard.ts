@@ -2,7 +2,7 @@
  *  On projette les points d'une enveloppe conservatrice par pose (tête, oreilles, queue, pattes : voir tools/extract-envelopes.mts),
  *  tournée selon le cap, jamais le maillage skinné. Calculs purs ; aucune allocation notable dans `fits` (appelé à fréquence réduite). */
 import { DEFAULT_SAFE_ZONE, SafeZoneConfig } from '../config/camera';
-import { FOX_ENVELOPES } from '../config/foxEnvelopes';
+import { ACTIVE_PROFILE } from '../config/modelProfile';
 import { Framing } from './framing';
 
 export type EnvelopeKey = 'stand' | 'walk' | 'sit' | 'groom' | 'lie' | 'sleep' | 'stretch';
@@ -10,7 +10,7 @@ export type EnvelopeKey = 'stand' | 'walk' | 'sit' | 'groom' | 'lie' | 'sleep' |
 const smooth = (a: number, b: number, v: number) => { const t = Math.max(0, Math.min(1, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 export class FrameGuard {
-  constructor(private framing: () => Framing, private cfg: SafeZoneConfig = DEFAULT_SAFE_ZONE, private envelopes: Record<string, number[][]> = FOX_ENVELOPES) {}
+  constructor(private framing: () => Framing, private cfg: SafeZoneConfig = DEFAULT_SAFE_ZONE, private envelopes: Record<string, number[][]> = ACTIVE_PROFILE.envelopes) {}
 
   /** Bornes de la zone sûre pour le cadrage courant (portrait → paysage en fonction du ratio). */
   rect() {

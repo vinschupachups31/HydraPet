@@ -22,12 +22,12 @@ interface Props {
 function Scene({ model, shadows }: Props) {
   const size = useThree((s) => s.size);
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
-  const { devClose, devSide } = useView();
+  const { devClose, devSide, devThree } = useView();
   // on arrondit le ratio : seul un vrai changement de fenêtre (rotation, redimensionnement) recalcule le cadrage
   const aspect = Math.round((size.width / Math.max(1, size.height)) * 100) / 100;
   const game = useMemo(() => computeFraming(aspect, DEFAULT_BEHAVIOR.approach.z), [aspect]);
   const view = useMemo(() => (devClose ? devCloseFraming(aspect) : game), [devClose, game, aspect]);
-  void devSide;
+  void devSide; void devThree;
 
   useLayoutEffect(() => {
     camera.position.set(...view.position);
@@ -40,6 +40,11 @@ function Scene({ model, shadows }: Props) {
 
   // caméra de profil de développement : suit l'animal pour juger les postures de côté (la caméra de jeu reste fixe, cette vue n'existe qu'en dev)
   useFrame(() => {
+    if (devThree) { // trois quarts de développement, plus près : couchage, réveil, toilette
+      const { x, z } = overlayData.pos, d = Math.max(1.0, Math.min(2.6, 0.5 / (Math.tan(15 * Math.PI / 180) * camera.aspect)));
+      camera.position.set(x + d * 0.72, 0.34, z + d * 0.72); camera.fov = 30; camera.lookAt(x, 0.13, z); camera.updateProjectionMatrix();
+      return;
+    }
     if (!devSide) return;
     const { x, z } = overlayData.pos;
     const d = Math.max(1.45, Math.min(3.2, 0.62 / (Math.tan(13 * Math.PI / 180) * camera.aspect))); // assez loin pour cadrer l'animal entier en portrait comme en paysage

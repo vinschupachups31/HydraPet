@@ -66,8 +66,9 @@ export function Hud() {
         <Btn testID="btn-info" label={`Infos : ${view.info ? 'oui' : 'non'}`} onPress={() => viewStore.set({ info: !view.info })} />
         <Btn testID="btn-ik" label={`Appuis IK : ${d.ik ? 'oui' : 'non'}`} onPress={() => debugStore.commands.toggleIK?.()} />
         <Btn testID="btn-overlay" label={`Superposition : ${view.overlay ? 'oui' : 'non'}`} onPress={() => viewStore.set({ overlay: !view.overlay })} />
-        <Btn testID="btn-side" label={`Profil : ${view.devSide ? 'oui' : 'non'}`} onPress={() => viewStore.set({ devSide: !view.devSide, devClose: false })} />
-        <Btn testID="btn-close" label={`Gros plan : ${view.devClose ? 'oui' : 'non'}`} onPress={() => viewStore.set({ devClose: !view.devClose, devSide: false })} />
+        <Btn testID="btn-side" label={`Profil : ${view.devSide ? 'oui' : 'non'}`} onPress={() => viewStore.set({ devSide: !view.devSide, devClose: false, devThree: false })} />
+        <Btn testID="btn-three" label={`3/4 : ${view.devThree ? 'oui' : 'non'}`} onPress={() => viewStore.set({ devThree: !view.devThree, devSide: false, devClose: false })} />
+        <Btn testID="btn-close" label={`Gros plan : ${view.devClose ? 'oui' : 'non'}`} onPress={() => viewStore.set({ devClose: !view.devClose, devSide: false, devThree: false })} />
       </View>
     </View>
   );
