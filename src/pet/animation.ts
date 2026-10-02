@@ -157,6 +157,7 @@ export class AnimationController {
       this.rig.groundSolve(post!.weight);        // le bassin descend avec les membres fléchis : le corps ne traverse pas le sol et ne flotte pas
       this.holdAnchors(post!);
       this.groomContact(post!);
+      this.rig.groundSolve(post!.weight);        // 2e passe : les contraintes ci-dessus ne doivent jamais enfoncer un pied dans le sol
       this.ik.update(false, 0, dt);
     } else {
       this.rig.groundShift = 0; this.anchorSeq = -1; this.groomGap = 0;
@@ -196,7 +197,7 @@ export class AnimationController {
     if (rel <= 0.01) return;
     for (const t of this.anchorTargets) {
       const cur = t.effector.getWorldPosition(this.tv);
-      this.tv2.copy(cur).lerp(t.target, rel);
+      this.tv2.set(cur.x + (t.target.x - cur.x) * rel, cur.y, cur.z + (t.target.z - cur.z) * rel); // horizontal seulement : la hauteur reste celle de la pose (pas de pénétration du sol)
       solveChain(t.chain, t.effector, null, this.tv2, { iterations: 5, stepLimit: 0.5, maxJointDelta: 0.9 });
     }
     this.root.updateMatrixWorld(true);

@@ -119,7 +119,8 @@ export class PoseRig {
    *  `weight` pondère la correction (0 = rien). La hauteur de la pose animée n'est pas touchée quand le poids est nul. */
   groundSolve(weight: number, lift = 0) {
     if (weight <= 1e-4 || !this.bones.hip) { this.groundShift = 0; return; }
-    const dy = (-this.lowestY() + lift) * weight; // m (monde)
+    const need = -this.lowestY() + lift;
+    const dy = need > 0 && lift === 0 ? need : need * weight; // pénétration du sol : corrigée en entier, quel que soit le poids ; lévitation : corrigée selon le poids de la pose
     this.groundShift = dy;
     const hip = this.bones.hip;
     const parent = hip.parent!;
