@@ -73,3 +73,32 @@ lab.show = (o: { named?: string; mirror?: boolean; padSide?: 'L' | 'R'; pose?: P
   cost(); rig.pad(o.side, p); if (o.point) rig.headPoint(o.point, m); else rig.muzzle(m);
   return { pose, dist: +(p.distanceTo(m) * 100).toFixed(2), cost: best };
 };
+
+/** Rendu d'un GLB quelconque (sans rig) pour l'inspecter : vues de profil, de face et de dessus. */
+(lab as any).view = async (url: string, view: string) => {
+  const g = await new GLTFLoader().loadAsync(url);
+  const obj = g.scene; scene.add(obj);
+  const box = new THREE.Box3().setFromObject(obj), size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+  const d = Math.max(size.x, size.y, size.z) * 2.4;
+  if (view === 'side') cam.position.set(c.x + d, c.y, c.z); else if (view === 'front') cam.position.set(c.x, c.y, c.z + d); else if (view === 'top') cam.position.set(c.x, c.y + d, c.z + 0.01); else cam.position.set(c.x + d * 0.7, c.y + d * 0.3, c.z + d * 0.7);
+  cam.near = d / 100; cam.far = d * 10; cam.updateProjectionMatrix(); cam.lookAt(c); floor.visible = false; scene.children.filter((o) => (o as any).isGridHelper).forEach((o) => (o.visible = false));
+  renderer.render(scene, cam); scene.remove(obj);
+  return { size: size.toArray(), center: c.toArray() };
+};
+
+/** Rendu d'un GLB rigé à un instant d'un clip (contrôle des poids de peau) : vues de profil / face / trois quarts, avec ou sans squelette. */
+(lab as any).rigView = async (url: string, clip: string, t: number, view: string, bones: boolean) => {
+  const g = await new GLTFLoader().loadAsync(url);
+  const obj = g.scene; scene.add(obj);
+  const mx = new THREE.AnimationMixer(obj);
+  const c = THREE.AnimationClip.findByName(g.animations, clip); if (c) { mx.clipAction(c).play(); mx.setTime(t); }
+  obj.updateMatrixWorld(true);
+  let helper: THREE.SkeletonHelper | null = null; if (bones) { helper = new THREE.SkeletonHelper(obj); (helper.material as THREE.LineBasicMaterial).depthTest = false; scene.add(helper); }
+  const box = new THREE.Box3().setFromObject(obj), size = box.getSize(new THREE.Vector3()), ctr = box.getCenter(new THREE.Vector3());
+  const d = Math.max(size.x, size.y, size.z) * 2.1; ctr.y = Math.min(ctr.y, size.y * 0.45);
+  if (view === 'side') cam.position.set(ctr.x + d, ctr.y, ctr.z); else if (view === 'front') cam.position.set(ctr.x, ctr.y, ctr.z + d); else cam.position.set(ctr.x + d * 0.7, ctr.y + d * 0.25, ctr.z + d * 0.7);
+  cam.near = d / 100; cam.far = d * 10; cam.updateProjectionMatrix(); cam.lookAt(ctr);
+  floor.visible = false; scene.children.filter((o) => (o as any).isGridHelper).forEach((o) => (o.visible = false));
+  renderer.render(scene, cam); scene.remove(obj); if (helper) scene.remove(helper);
+  return { size: size.toArray(), anims: g.animations.map((a) => a.name) };
+};
