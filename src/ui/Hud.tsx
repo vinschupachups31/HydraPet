@@ -20,6 +20,7 @@ export function Hud() {
         <Text style={styles.title}>HydraPet · test technique</Text>
         <Text style={styles.line}>{d.loaded ? 'Modèle chargé' : 'Chargement du modèle…'} · {d.fps} fps</Text>
         <Text style={styles.line}>état {d.mode}{d.pivoting ? ' (pivote)' : ''} · {d.speed.toFixed(2)} m/s · allure {d.gait}</Text>
+        <Text style={styles.line}>virage {d.phase} · ω {(d.omega * 57.3).toFixed(0)}°/s · tête {(d.gaze * 57.3).toFixed(0)}°</Text>
         <Text style={styles.line}>repos {(d.idleW * 100).toFixed(0)}% · marche {(d.walkW * 100).toFixed(0)}% (×{d.walkTS.toFixed(2)}) · course {(d.runW * 100).toFixed(0)}% (×{d.runTS.toFixed(2)})</Text>
         <Text style={styles.small}>{d.clips}</Text>
       </View>

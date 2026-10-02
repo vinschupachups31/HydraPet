@@ -7,7 +7,9 @@ import { PetModelConfig, ROOM } from '../config/pet';
 import { PetBrain } from './brain';
 import { diag } from '../diag/diagStore';
 import { debugStore } from './debugStore';
-import { DEFAULT_LOCO, LocoState, animationMix } from './locomotion';
+import { DEFAULT_TURN } from '../config/turning';
+import { applyChain, resolveBones } from './headLook';
+import { createLocoState, animationMix } from './locomotion';
 import { mulberry32 } from './rng';
 
 interface Props {
@@ -58,11 +60,15 @@ export function Pet({ config, source }: Props) {
   const brain = useMemo(() => {
     const seed = (globalThis as { __HP_SEED__?: number }).__HP_SEED__;
     const rng = seed !== undefined ? mulberry32(seed) : Math.random;
-    const loco: LocoState = { x: 0, z: 0.2, heading: 0, speed: 0, pivoting: false };
+    const loco = createLocoState(0, 0.2, 0);
     // vitesse de croisière = vitesse naturelle du clip : cadence normale (time-scale 1)
-    const params = { ...DEFAULT_LOCO, vWalk: vWalkRef, vRun: vRunRef };
+    const params = { ...DEFAULT_TURN, vWalk: vWalkRef, vRun: vRunRef, ...config.turn };
     return new PetBrain(loco, { minX: -ROOM.width / 2 + 0.5, maxX: ROOM.width / 2 - 0.5, minZ: -ROOM.depth / 2 + 0.5, maxZ: ROOM.depth / 2 - 0.35 }, rng, params);
-  }, [vWalkRef, vRunRef]);
+  }, [vWalkRef, vRunRef, config.turn]);
+
+  const headChain = useMemo(() => resolveBones(root, config.headBones), [root, config]);
+  const spineChain = useMemo(() => resolveBones(root, config.spineBones), [root, config]);
+  const yawOffsetQ = useMemo(() => new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), config.yawOffset), [config.yawOffset]);
   const fps = useRef({ t: 0, n: 0 });
   const frame = useRef(0);
 
@@ -71,8 +77,11 @@ export function Pet({ config, source }: Props) {
     debugStore.set({ loaded: true, clips: gltf.animations.map((a) => `${a.name} ${a.duration.toFixed(2)}s`).join(' · ') });
     debugStore.commands.call = () => brain.call();
     debugStore.commands.touch = () => brain.touch();
+    debugStore.commands.goTo = (x, z, gait) => brain.goTo(x, z, gait);
     debugStore.commands.toggleGait = () => { brain.toggleForcedGait(); debugStore.set({ gait: brain.forcedGait ?? 'auto' }); };
     debugStore.commands.toggleAutonomy = () => { brain.autonomy = !brain.autonomy; debugStore.set({ autonomy: brain.autonomy }); };
+    const g = globalThis as { __HP_PROBE__?: unknown; __HP_API__?: unknown };
+    if (g.__HP_PROBE__) g.__HP_API__ = { goTo: (x: number, z: number, gait?: 'walk' | 'run') => brain.goTo(x, z, gait), autonomy: (v: boolean) => { brain.autonomy = v; } };
     return () => { debugStore.commands = {}; };
   }, [brain, gltf]);
 
@@ -92,7 +101,7 @@ export function Pet({ config, source }: Props) {
     brain.update(dt);
     const loco = brain.loco;
 
-    const mix = animationMix(loco.speed, loco.pivoting, vWalkRef, vRunRef);
+    const mix = animationMix(loco, vWalkRef, vRunRef);
     const k = 1 - Math.exp(-dt * 9);
     const w = weights.current;
     w.idle += (mix.idle - w.idle) * k;
@@ -105,17 +114,20 @@ export function Pet({ config, source }: Props) {
     actions.idle.setEffectiveTimeScale(mix.idleTimeScale);
     actions.walk.setEffectiveTimeScale(mix.walkTimeScale);
     actions.run.setEffectiveTimeScale(mix.runTimeScale);
-    mixer.update(dt);
-
     if (group.current) {
       group.current.position.set(loco.x, 0, loco.z);
-      group.current.rotation.y = loco.heading + config.yawOffset;
+      group.current.quaternion.set(0, loco.q.y, 0, loco.q.w).multiply(yawOffsetQ); // orientation par quaternion
     }
+    mixer.update(dt);
+    // anticipation : cou/tête d'abord, épaules ensuite — ajoutées APRÈS le mixeur, recalculées à chaque image
+    root.updateMatrixWorld(true);
+    applyChain(spineChain, loco.gazeSpine);
+    applyChain(headChain, loco.gazeHead);
 
     const probe = (globalThis as { __HP_PROBE__?: { frames: unknown[] } }).__HP_PROBE__;
     if (probe) {
       const feet = footObjs.map((o) => o.getWorldPosition(tmp.set(0, 0, 0)).toArray());
-      probe.frames.push({ t: state.clock.elapsedTime, dt, mode: brain.mode, speed: loco.speed, pivoting: loco.pivoting, x: loco.x, z: loco.z, heading: loco.heading, w: [w.idle / sum, w.walk / sum, w.run / sum], ts: [mix.walkTimeScale, mix.runTimeScale], feet });
+      probe.frames.push({ t: state.clock.elapsedTime, dt, mode: brain.mode, speed: loco.speed, pivoting: loco.pivoting, x: loco.x, z: loco.z, heading: loco.heading, w: [w.idle / sum, w.walk / sum, w.run / sum], ts: [mix.walkTimeScale, mix.runTimeScale], feet, omega: loco.omega, desired: loco.desiredYaw, phase: loco.phase, gaze: [loco.gazeHead, loco.gazeSpine] });
     }
 
     fps.current.t += delta;
@@ -124,7 +136,7 @@ export function Pet({ config, source }: Props) {
     if (fps.current.t >= 0.5) {
       debugStore.set({
         fps: Math.round(fps.current.n / fps.current.t), mode: brain.mode, speed: loco.speed, heading: loco.heading, x: loco.x, z: loco.z,
-        idleW: w.idle / sum, walkW: w.walk / sum, runW: w.run / sum, walkTS: mix.walkTimeScale, runTS: mix.runTimeScale, pivoting: loco.pivoting,
+        idleW: w.idle / sum, walkW: w.walk / sum, runW: w.run / sum, walkTS: mix.walkTimeScale, runTS: mix.runTimeScale, pivoting: loco.pivoting, phase: loco.phase, omega: loco.omega, gaze: loco.gazeHead,
       });
       fps.current = { t: 0, n: 0 };
     }

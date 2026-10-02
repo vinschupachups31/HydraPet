@@ -53,6 +53,13 @@ export class PetBrain {
     this.gait = this.forcedGait ?? 'walk';
   }
 
+  /** Aller à un point précis (tests et commandes) : même chemin que la marche autonome. */
+  goTo(x: number, z: number, gait: 'walk' | 'run' = 'walk') {
+    this.mode = 'walk';
+    this.target = { x, z };
+    this.gait = gait;
+  }
+
   toggleForcedGait() {
     this.forcedGait = this.forcedGait === 'run' ? null : this.forcedGait === 'walk' ? 'run' : 'walk';
   }

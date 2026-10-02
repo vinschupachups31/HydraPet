@@ -66,7 +66,7 @@ Renvoyez-moi le message exact (capture d'écran) et le **Rapport** : voir [`RETO
 
 ## Vérifications
 ```bash
-npm test            # logique de déplacement et de comportement (7 tests)
+npm test            # déplacement, virages et comportement (20 tests)
 npm run typecheck
 npm run analyze -- assets/models/fox.glb   # clips, os, vitesse de marche d'un modèle
 ```
