@@ -7,6 +7,7 @@ import { PetModelConfig } from '../config/pet';
 import { diag } from '../diag/diagStore';
 import { FootDebug, FootIK, contactPosition, solveChain } from './footIK';
 import { applyChain, applyPitchChain, resolveBones } from './headLook';
+import { ExpressionLayer } from './expression';
 import { PostureController } from './posture';
 import { PoseRig } from './rig';
 import { ACTIVE_PROFILE } from '../config/modelProfile';
@@ -101,6 +102,7 @@ export class AnimationController {
   private spineChain: ReturnType<typeof resolveBones>;
   private durations: Record<Slot, number>;
   readonly rig: PoseRig;
+  private expression: ExpressionLayer | null = null;
   posture: PostureController | null = null;
   private anchorSeq = -1;
   private anchorTargets: { key: string; chain: THREE.Object3D[]; effector: THREE.Object3D; target: THREE.Vector3 }[] = [];
@@ -141,6 +143,7 @@ export class AnimationController {
     this.headChain = resolveBones(root, model.headBones);
     this.spineChain = resolveBones(root, model.spineBones);
     this.rig = new PoseRig(root);
+    this.expression = model.expression ? new ExpressionLayer(root, model.expression) : null;
     if (this.rig.missing.length) diag.step('rig', 'fail', `Os de posture introuvables : ${this.rig.missing.join(', ')}`);
   }
 
@@ -181,6 +184,10 @@ export class AnimationController {
     applyChain(this.spineChain, gazeOk ? gaze.spine : 0);
     applyChain(this.headChain, gazeOk ? gaze.head : 0);
     applyPitchChain(this.headChain, this.gazePitchNow, this.root);
+    if (this.expression) {                      // oreilles : pas pendant la toilette (la patte touche l'oreille)
+      this.expression.weight = post && post.state === 'Grooming' ? 0 : 1;
+      this.expression.update(dt);
+    }
     this.root.updateMatrixWorld(true);           // 5. matrices avant le rendu
   }
 

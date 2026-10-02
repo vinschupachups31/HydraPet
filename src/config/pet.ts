@@ -4,6 +4,7 @@ import { CAT_CLIP_DATA } from './catClips';
 import { CAT_PROFILE, FOX_PROFILE } from './modelProfile';
 import { FootChainDef } from '../pet/footIK';
 import { TurnConfig } from './turning';
+import type { ExpressionConfig } from '../pet/expression';
 
 export interface PetModelConfig {
   id: string;
@@ -28,6 +29,8 @@ export interface PetModelConfig {
   footChains: FootChainDef[];
   /** Réglages de virage propres à cet animal (le reste vient de config/turning.ts). */
   turn?: Partial<TurnConfig>;
+  /** Oreilles : frémissements (couche d'expression). Absent : aucune. */
+  expression?: ExpressionConfig;
 }
 
 /** Stand-in technique : un renard (CC0 + CC-BY 4.0), PAS le chat/chien final. Voir ASSETS.md. */
@@ -74,6 +77,7 @@ export const CAT_REALISTIC: PetModelConfig = {
     { foot: 'Back_Leg_Tip_R', bones: ['Back_Leg_Upper_R', 'Back_Leg_Lower_R', 'Back_Leg_Ankle_R', 'Back_Leg_Tip_R'] },
   ],
   turn: {},
+  expression: { ears: ['Ear_L', 'Ear_R'], twitchEvery: [3, 9], twitchTime: 0.22, twitchDeg: { back: 14, out: 10 } },
 };
 
 export const ACTIVE_PET: PetModelConfig = CAT_REALISTIC;
