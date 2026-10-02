@@ -20,4 +20,6 @@ export const overlayData = {
   pois: [] as { id: string; x: number; z: number; r: number }[],
   /** Repères de contact (museau, coussinet, pieds tenus) : mis à jour par l'animal quand la superposition est affichée. */
   markers: [] as { x: number; y: number; z: number; color: string }[],
+  /** Trajectoires des contacts (monde) : vert = appui, bleu = levée, rouge = appui au-delà du seuil de glissement. */
+  trails: [] as { foot: number; x: number; y: number; z: number; color: 'green' | 'blue' | 'red' }[],
 };

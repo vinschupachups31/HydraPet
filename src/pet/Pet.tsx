@@ -11,7 +11,9 @@ import { DEFAULT_TURN } from '../config/turning';
 import { diag } from '../diag/diagStore';
 import { AnimationController } from './animation';
 import { BehaviorController } from './behavior';
+import { ContactTracker, slipThreshold } from './contactMetrics';
 import { debugStore } from './debugStore';
+import { DIAG_SCENARIOS, DiagRunner } from './diagnostic';
 import { FrameGuard } from './frameGuard';
 import { Framing } from './framing';
 import { WalkArea, resolvePoi } from './layout';
@@ -64,7 +66,9 @@ export function Pet({ config, source, framing }: Props) {
       approachPoint: () => framingRef.current.approach,
       cameraXZ: () => ({ x: framingRef.current.position[0], z: framingRef.current.position[2] }),
     });
-    return { anim, loco, behavior, posture, animCfg, area, bcfg };
+    const tracker = new ContactTracker();
+    const diag = new DiagRunner({ goTo: (x, z, g) => loco.goTo(x, z, g), isMoving: () => loco.isMoving, face: (x, z) => loco.faceTowards(x, z), isFacing: () => loco.status === 'faced' });
+    return { anim, loco, behavior, posture, animCfg, area, bcfg, tracker, diag };
   }, [root, gltf, config]);
 
   useEffect(() => {
@@ -75,6 +79,7 @@ export function Pet({ config, source, framing }: Props) {
   const yawOffsetQ = useMemo(() => new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), config.yawOffset), [config.yawOffset]);
   const fps = useRef({ t: 0, n: 0 });
   const timeScale = useRef(1);
+  const diagWasAuto = useRef(true);
   const tmp = useMemo(() => ({ v: new THREE.Vector3() }), []);
 
   useEffect(() => {
@@ -88,6 +93,11 @@ export function Pet({ config, source, framing }: Props) {
     debugStore.commands.toggleGait = () => { behavior.toggleForcedGait(); debugStore.set({ gait: behavior.forcedGait ?? 'auto' }); };
     debugStore.commands.toggleAutonomy = () => { behavior.autonomy = !behavior.autonomy; debugStore.set({ autonomy: behavior.autonomy }); };
     debugStore.commands.force = (k) => behavior.force(k);
+    debugStore.commands.diag = (id) => {                       // diagnostic : décisions autonomes suspendues, caméra de profil et superposition activées (outil de développement)
+      ctl.tracker.reset(); ctl.diag.start(id); diagWasAuto.current = behavior.autonomy; behavior.autonomy = false; behavior.forceDiagnostic();
+      viewStore.set({ devSide: true, devClose: false, overlay: true }); debugStore.set({ diag: id, diagReport: [], autonomy: false });
+    };
+    debugStore.commands.diagStop = () => { ctl.diag.stop(); behavior.autonomy = diagWasAuto.current; debugStore.set({ diag: '-', diagStep: '-', autonomy: behavior.autonomy }); };
     debugStore.commands.toggleMode = () => { bcfgRef.activities.mode = bcfgRef.activities.mode === 'demo' ? 'production' : 'demo'; debugStore.set({ mode: bcfgRef.activities.mode }); };
     debugStore.commands.setSpeed = (v) => { timeScale.current = v; debugStore.set({ simSpeed: v }); };
     debugStore.set({ mode: bcfgRef.activities.mode, simSpeed: 1 });
@@ -100,6 +110,9 @@ export function Pet({ config, source, framing }: Props) {
         touch: () => behavior.touch(),
         call: () => behavior.call(),
         force: (k: Parameters<typeof behavior.force>[0]) => behavior.force(k),
+        diag: (id: string) => debugStore.commands.diag?.(id),
+        diagReport: () => ({ ...ctl.tracker.report(), running: ctl.diag.active, runs: ctl.tracker.runs }),
+        diagActive: () => ctl.diag.active,
         posture: () => ctl.posture,
         behavior: () => behavior,
         speed: (v: number) => { timeScale.current = v; },
@@ -123,6 +136,7 @@ export function Pet({ config, source, framing }: Props) {
     const n = Math.max(1, Math.ceil(total / 0.05));
     const dt = total / n;
     for (let i = 0; i < n; i++) {
+      ctl.diag.update(dt);
       behavior.update(dt);                         // 1. intention : activité, destination, posture demandée
       loco.update(dt);                             // 2. position, orientation, freinage, virages, collisions (le seul système qui déplace le parent)
       posture.update(dt);                          // 3. séquences de posture (pose cible)
@@ -133,6 +147,21 @@ export function Pet({ config, source, framing }: Props) {
     }
     anim.update(total, { realSpeed: loco.realSpeed, omega: s.omega, pivoting: s.pivoting }, { head: s.gazeHead, spine: s.gazeSpine, pitch: s.gazePitch }); // 4. clips, cadence, posture, appuis, tête
 
+    // ---- diagnostic des appuis : mesure des phases d'appui identifiées, en coordonnées monde ----
+    const dg = ctl.diag;
+    if (dg.scenario) {
+      if (dg.measuring) {
+        const feet = anim.ik.feet.map((f, i) => { f.effector.getWorldPosition(tmp.v); return { x: tmp.v.x, y: tmp.v.y, z: tmp.v.z, phase: anim.contactPhase(i) }; });
+        ctl.tracker.push({ t: behavior.time, x: s.x, z: s.z, heading: s.heading, speed: loco.realSpeedRaw, omega: s.omega }, feet);
+      }
+      if (dg.done) {
+        ctl.tracker.finish(behavior.time);
+        const o = ctl.tracker.report(), c = (q: { n: number; median: number; max: number; over: number }) => `${q.n} appuis · médiane ${(q.median * 100).toFixed(1)} cm · max ${(q.max * 100).toFixed(1)} cm · ${q.over} > seuil`;
+        debugStore.set({ diagReport: [`seuil ${(o.threshold.relative * 100).toFixed(0)} % de ${o.threshold.bodyLength} m = ${(o.threshold.metres * 100).toFixed(1)} cm`, `longitudinal : ${c(o.longitudinal)}`, `latéral : ${c(o.lateral)}`, `à l'arrêt : ${c(o.arret)}`], diag: dg.scenario.id + ' (terminé)' });
+        behavior.autonomy = diagWasAuto.current; debugStore.set({ autonomy: behavior.autonomy });
+        dg.stop();
+      }
+    }
     // ---- sonde de test et debug (hors simulation) ----
     const probe = (globalThis as { __HP_PROBE__?: { frames: unknown[] } }).__HP_PROBE__;
     const dbg = anim.debug();
@@ -161,6 +190,7 @@ export function Pet({ config, source, framing }: Props) {
       const pd = rg.pad('R', tmp.v); m.push({ x: pd.x, y: pd.y, z: pd.z, color: '#2e86ab' });
       for (const f of anim.ik.feet) if (f.plant) m.push({ x: f.plant.x, y: f.plant.y, z: f.plant.z, color: '#d9534f' });
     }
+    if (viewStore.get().overlay) overlayData.trails = ctl.tracker.trail; else if (overlayData.trails.length) overlayData.trails = [];
     overlayData.plants = anim.ik.feet.filter((f) => f.plant).map((f) => ({ x: f.plant!.x, y: f.plant!.y, z: f.plant!.z }));
 
     fps.current.t += delta; fps.current.n += 1;
@@ -168,6 +198,7 @@ export function Pet({ config, source, framing }: Props) {
       const names = dbg.feet.map((f) => (f.released ? '✗' : f.weight > 0.05 ? '●' : '○')).join('');
       debugStore.set({
         fps: Math.round(fps.current.n / fps.current.t),
+        diagStep: dg.scenario ? dg.label : '-', diagMeasuring: dg.measuring, footPhases: anim.ik.feet.map((f, i) => `${['AvD', 'AvG', 'ArG', 'ArD'][i]} ${anim.contactPhase(i) === 'stance' ? 'appui' : anim.contactPhase(i) === 'swing' ? 'levée' : '–'}`).join(' · '),
         state: behavior.state, phaseName: behavior.phase ?? '-', postureState: posture.state, pending: behavior.pending === null ? '-' : typeof behavior.pending === 'object' ? `ordre ${behavior.pending.force}` : behavior.pending, groomGap: dbg.posture.groomGap, anchors: dbg.posture.anchored.length, remaining: behavior.remaining, poi: behavior.poi?.id ?? (behavior.destination ? 'point' : '-'), zone: behavior.zone, tripsInRow: behavior.tripsInRow,
         nextApproachIn: Math.max(0, behavior.nextApproachAt - behavior.time),
         phase: s.phase, speedRequested: loco.requestedSpeed, speedReal: loco.realSpeed, omega: s.omega, gaze: s.gazeHead, distance: loco.distance,

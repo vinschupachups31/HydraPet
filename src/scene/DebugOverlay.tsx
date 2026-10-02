@@ -11,6 +11,9 @@ export function DebugOverlay() {
   const arrive = useRef<THREE.Mesh>(null);
   const plants = useRef<THREE.Group>(null);
   const marks = useRef<THREE.Group>(null);
+  const trailRef = useRef<THREE.Points>(null);
+  const trailGeo = useMemo(() => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6000 * 3), 3)); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(6000 * 3), 3)); g.setDrawRange(0, 0); return g; }, []);
+  const trailMat = useMemo(() => new THREE.PointsMaterial({ size: 0.02, vertexColors: true, sizeAttenuation: true, depthTest: false, transparent: true }), []);
   const markGeo = useMemo(() => new THREE.SphereGeometry(0.01, 10, 8), []);
   const poiGroup = useRef<THREE.Group>(null);
   const lineGeo = useMemo(() => new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), []);
@@ -35,6 +38,16 @@ export function DebugOverlay() {
       while (g.children.length < list.length) g.add(new THREE.Mesh(ringGeo, poiMat));
       g.children.forEach((c, i) => { c.visible = i < list.length; if (i < list.length) { c.position.set(list[i].x, 0.011, list[i].z); c.rotation.x = -Math.PI / 2; c.scale.setScalar(list[i].r); } });
     }
+    if (trailRef.current) {
+      const tr = overlayData.trails, pos = trailGeo.getAttribute('position') as THREE.BufferAttribute, col = trailGeo.getAttribute('color') as THREE.BufferAttribute;
+      const n = Math.min(tr.length, 6000);
+      for (let i = 0; i < n; i++) {
+        const p = tr[tr.length - n + i];
+        pos.setXYZ(i, p.x, p.y + 0.004, p.z);
+        if (p.color === 'green') col.setXYZ(i, 0.1, 0.7, 0.2); else if (p.color === 'red') col.setXYZ(i, 0.95, 0.1, 0.1); else col.setXYZ(i, 0.2, 0.45, 0.95);
+      }
+      pos.needsUpdate = true; col.needsUpdate = true; trailGeo.setDrawRange(0, n);
+    }
     if (marks.current) {
       const list = overlayData.markers, g = marks.current;
       while (g.children.length < list.length) g.add(new THREE.Mesh(markGeo, new THREE.MeshBasicMaterial({ color: '#fff', depthTest: false })));
@@ -57,6 +70,7 @@ export function DebugOverlay() {
       <primitive object={lineObj} ref={line} />
       <group ref={plants} />
       <group ref={marks} />
+      <points ref={trailRef} geometry={trailGeo} material={trailMat} frustumCulled={false} renderOrder={9} />
     </group>
   );
 }

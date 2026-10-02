@@ -26,6 +26,9 @@ export function Hud() {
         <Text style={styles.line}>vitesse demandée {d.speedRequested.toFixed(2)} · réelle {d.speedReal.toFixed(2)} m/s · {d.phase}</Text>
         <Text style={styles.line}>clip {d.clip} · repos {(d.idleW * 100).toFixed(0)}% marche {(d.walkW * 100).toFixed(0)}% (×{d.walkRate.toFixed(2)}) course {(d.runW * 100).toFixed(0)}%</Text>
         <Text style={styles.line}>appuis {d.feet} · ω {(d.omega * 57.3).toFixed(0)}°/s · tête {(d.gaze * 57.3).toFixed(0)}° · pieds tenus {d.anchors}{d.groomGap > 0 ? ` · patte↔museau ${d.groomGap.toFixed(1)} cm` : ''}</Text>
+        {d.diag !== '-' && <Text style={styles.line}>diagnostic {d.diag} · étape {d.diagStep}{d.diagMeasuring ? ' · mesure' : ''}</Text>}
+        {d.footPhases !== '' && <Text style={styles.small}>{d.footPhases}</Text>}
+        {d.diagReport.map((l, i) => <Text key={i} style={styles.small}>{l}</Text>)}
         <Text style={styles.small}>approche dans {d.nextApproachIn.toFixed(0)} s · trajets d'affilée {d.tripsInRow}</Text>
       </View>}
       {view.info && <Text style={styles.credits} pointerEvents="none">{ACTIVE_MODEL.credits}</Text>}
@@ -41,6 +44,15 @@ export function Hud() {
           <Btn testID="btn-groom" label="Toilette" onPress={() => debugStore.commands.force?.('groom')} />
           <Btn testID="btn-sleep" label="Sommeil" onPress={() => debugStore.commands.force?.('sleep')} />
           <Btn testID="btn-stretch" label="Étirement" onPress={() => debugStore.commands.force?.('stretch')} />
+        </View>
+      )}
+      {view.info && (
+        <View style={styles.diag}>
+          <Btn testID="btn-d-straight" label="Droite" onPress={() => debugStore.commands.diag?.('straight')} />
+          <Btn testID="btn-d-brake" label="Freinage" onPress={() => debugStore.commands.diag?.('brake')} />
+          <Btn testID="btn-d-curve" label="Courbe 90°" onPress={() => debugStore.commands.diag?.('curve')} />
+          <Btn testID="btn-d-uturn" label="Demi-tour" onPress={() => debugStore.commands.diag?.('uturn')} />
+          <Btn testID="btn-d-rest" label="Marche-repos" onPress={() => debugStore.commands.diag?.('restwalk')} />
         </View>
       )}
       {view.info && (
@@ -66,9 +78,10 @@ const styles = StyleSheet.create({
   title: { color: C.text, fontSize: 17, fontWeight: '700', marginBottom: 4 },
   line: { color: C.text, fontSize: 13, lineHeight: 18 },
   small: { color: C.muted, fontSize: 11, marginTop: 4 },
-  credits: { position: 'absolute', left: 12, right: 12, bottom: 260, color: C.muted, fontSize: 10, lineHeight: 13 },
+  credits: { position: 'absolute', left: 12, right: 12, bottom: 316, color: C.muted, fontSize: 10, lineHeight: 13 },
   bottom: { position: 'absolute', left: 12, right: 12, bottom: 24, flexDirection: 'row', gap: 8 },
   acts: { position: 'absolute', left: 12, right: 12, bottom: 140, flexDirection: 'row', gap: 6 },
+  diag: { position: 'absolute', left: 12, right: 12, bottom: 256, flexDirection: 'row', gap: 6 },
   acts2: { position: 'absolute', left: 12, right: 12, bottom: 198, flexDirection: 'row', gap: 6 },
   dev: { position: 'absolute', left: 12, right: 12, bottom: 82, flexDirection: 'row', gap: 8 },
   btn: { flex: 1, minHeight: 48, borderRadius: 20, backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },

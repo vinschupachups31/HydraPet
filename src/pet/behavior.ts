@@ -498,6 +498,14 @@ export class BehaviorController {
     }
   }
 
+  /** Diagnostic : suspend toute décision (le scénario commande la locomotion directement). L'état reste « observe » sans fin. */
+  forceDiagnostic() {
+    this.pending = null; this.planned = null;
+    if (this.inPostureActivity) { this.pending = { force: 'observe' }; this.leavePostureActivity(); return; }
+    this.enterObserve([1e6, 1e6], false);
+    this.obs.done = true;
+  }
+
   /** Commande de test : lance l'activité par les MÊMES transitions que l'autonomie (jamais de saut direct à la pose finale). */
   force(kind: PostureActivity | 'observe') {
     this.lastInteraction = this.time;
