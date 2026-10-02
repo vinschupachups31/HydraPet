@@ -44,6 +44,10 @@ export interface FootIKConfig {
   /** Pas de rattrapage quand le pied dépasse sa portée (virages) : durée (s) et hauteur de levée (m). 0 = simple relâchement. */
   stepDuration: number;
   stepLift: number;
+  /** Corps arrêté debout : les pieds posés restent plantés (aucun glissement au repos) ; portée max (m) et tolérance de hauteur (m) pour dire « posé ». */
+  holdAtRest: boolean;
+  holdReach: number;
+  groundTolerance: number;
 }
 
 export const DEFAULT_ANIMATION: AnimationConfig = {
@@ -72,5 +76,8 @@ export const DEFAULT_ANIMATION: AnimationConfig = {
     maxOmega: 3,
     stepDuration: 0.12,
     stepLift: 0.02,
+    holdAtRest: true,
+    holdReach: 0.12,
+    groundTolerance: 0.012,
   },
 };

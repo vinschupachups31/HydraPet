@@ -76,8 +76,8 @@ test('hors de portée avec pas de rattrapage : le pied se soulève et rejoint la
     if (ik.debug()[0].inContact && !ik.debug()[0].released) steps++;
     maxJump = Math.max(maxJump, w.distanceTo(last)); maxY = Math.max(maxY, w.y - L.eff.position.y * 0); last = w.clone();
   }
-  assert.ok(steps > 0 && steps <= 10, `pas en cours pendant ${steps} images`);
-  assert.ok(ik.debug()[0].released, 'relâché à la fin du pas');
+  assert.ok(steps > 0, 'un pas est effectué');
+  assert.ok(!ik.debug()[0].released && ik.debug()[0].inContact, 'le pas est posé : le pied est replanté à son nouvel endroit');
   assert.ok(maxJump < 0.2, `pas de saut brutal (${maxJump.toFixed(3)} m)`);
 });
 

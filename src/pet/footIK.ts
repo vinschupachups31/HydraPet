@@ -84,6 +84,10 @@ interface FootState {
   weight: number;
   error: number;
   correction: number;
+  /** Hauteur la plus basse observée de ce pied (m) : référence du sol pour savoir s'il est posé. */
+  minY: number;
+  /** Plante tenue à l'arrêt (hors phases de clip). */
+  held: boolean;
 }
 
 const _p = new THREE.Vector3(), _e = new THREE.Vector3(), _t = new THREE.Vector3(), _axis = new THREE.Vector3();
@@ -98,13 +102,36 @@ export class FootIK {
     for (const def of defs) {
       const chain = def.bones.map((n) => root.getObjectByName(n)).filter((o): o is THREE.Object3D => !!o);
       if (chain.length !== def.bones.length) { this.missing.push(def.foot); continue; }
-      this.feet.push({ def, chain, effector: chain[chain.length - 1], contacts: contactsByFoot[def.foot] ?? [], plant: null, wasIn: false, released: false, step: 0, stepFrom: null, weight: 0, error: 0, correction: 0 });
+      this.feet.push({ def, chain, effector: chain[chain.length - 1], contacts: contactsByFoot[def.foot] ?? [], plant: null, wasIn: false, released: false, step: 0, stepFrom: null, weight: 0, error: 0, correction: 0, minY: Infinity, held: false });
     }
   }
 
   setConfig(cfg: FootIKConfig) { this.cfg = cfg; }
 
   private release(f: FootState) { f.plant = null; f.step = 0; f.stepFrom = null; f.weight = 0; f.error = 0; f.correction = 0; }
+
+  /** Corps arrêté, debout : chaque pied posé garde son point de contact en coordonnées monde (aucun glissement lors du passage marche → repos
+   *  ni pendant le repos). Les pieds encore en l'air sont plantés dès qu'ils touchent le sol. Tout est relâché dès que la marche reprend. */
+  hold(dt = 1 / 60) {
+    const c = this.cfg;
+    if (!c.enabled || !c.holdAtRest) { for (const f of this.feet) { this.release(f); f.wasIn = false; f.released = false; f.held = false; } return; }
+    for (const f of this.feet) {
+      f.effector.getWorldPosition(_e);
+      f.minY = Math.min(f.minY, _e.y);
+      f.wasIn = false; f.released = false;
+      if (!f.plant) {
+        if (_e.y > f.minY + c.groundTolerance) { f.weight = 0; f.error = 0; continue; } // encore en l'air
+        f.plant = _e.clone(); f.held = true;
+      }
+      const dx = f.plant.x - _e.x, dz = f.plant.z - _e.z, err = Math.hypot(dx, dz);
+      f.error = err;
+      if (err > c.holdReach) { f.plant = null; f.held = false; f.weight = 0; continue; } // hors de portée : relâché, il sera replanté où il est
+      f.weight = 1;
+      _t.set(f.plant.x, _e.y, f.plant.z);
+      this.solve(f, _t);
+    }
+    void dt;
+  }
 
   /** @param active  vrai quand un clip de locomotion corrigeable domine et que le corps avance (sinon tout est relâché) */
   update(active: boolean, phase: number, dt = 1 / 60) {
@@ -114,7 +141,8 @@ export class FootIK {
       const u = contactPosition(f.contacts, phase);
       if (u === null) { this.release(f); f.wasIn = false; f.released = false; continue; }
       f.effector.getWorldPosition(_e);
-      if (!f.wasIn) { f.plant = _e.clone(); f.released = false; f.wasIn = true; } // pose du pied : le contact est pris ici, en coordonnées monde
+      f.minY = Math.min(f.minY, _e.y); const wasHeld = f.held; f.held = false;
+      if (!f.wasIn) { if (!(f.plant && wasHeld)) f.plant = _e.clone(); f.released = false; f.wasIn = true; } // pose du pied : le contact est pris ici, en coordonnées monde
       if (!f.stepFrom && f.plant && c.stepDuration > 0 && Math.hypot(f.plant.x - _e.x, f.plant.z - _e.z) > c.maxCorrection) {
         f.stepFrom = f.plant.clone(); f.step = -dt / c.stepDuration; f.plant = null; // hors de portée : le pied part en pas depuis son point d'appui (continuité : il y était tenu à l'image précédente)
       }
@@ -124,7 +152,7 @@ export class FootIK {
         _t.set(f.stepFrom.x + (_e.x - f.stepFrom.x) * e, _e.y + c.stepLift * Math.sin(Math.PI * f.step), f.stepFrom.z + (_e.z - f.stepFrom.z) * e);
         f.weight = 1; f.error = 0;
         this.solve(f, _t);
-        if (f.step >= 1) { f.stepFrom = null; f.released = true; f.weight = 0; }
+        if (f.step >= 1) { f.stepFrom = null; f.plant = _e.clone(); f.released = false; f.weight = 0; } // le pas est posé : le pied est planté à son nouvel endroit (il tiendra, ou refera un pas)
         continue;
       }
       if (f.released || !f.plant) { f.weight = 0; f.error = 0; continue; }

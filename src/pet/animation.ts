@@ -5,7 +5,7 @@ import { AnimationConfig } from '../config/animation';
 import { ClipLocomotionData } from '../config/foxClips';
 import { PetModelConfig } from '../config/pet';
 import { diag } from '../diag/diagStore';
-import { FootDebug, FootIK, solveChain } from './footIK';
+import { FootDebug, FootIK, contactPosition, solveChain } from './footIK';
 import { applyChain, applyPitchChain, resolveBones } from './headLook';
 import { PostureController } from './posture';
 import { PoseRig } from './rig';
@@ -165,7 +165,8 @@ export class AnimationController {
       const runOk = ikOn.includes('run') && p.runW >= this.cfg.ik.minLocomotionWeight;
       const clip: Slot | null = walkOk ? 'walk' : runOk ? 'run' : null;
       const phase = clip ? (a[clip].time / this.durations[clip]) % 1 : 0;
-      this.ik.update(!!clip && (inp.pivoting || p.locomoting) && Math.abs(inp.omega) <= this.cfg.ik.maxOmega, phase, dt);
+      const walking = !!clip && (inp.pivoting || p.locomoting) && Math.abs(inp.omega) <= this.cfg.ik.maxOmega;
+      if (walking) this.ik.update(true, phase, dt); else this.ik.hold(dt);
     }
     const gazeOk = !post || post.allowGaze;
     const k = 1 - Math.exp(-dt / 0.25);
@@ -235,6 +236,14 @@ export class AnimationController {
 
   private localOffset(bone: THREE.Object3D, world: THREE.Vector3) {
     return bone.worldToLocal(world.clone());
+  }
+
+  /** Phase d'appui d'un pied d'après les métadonnées du clip de marche : appui, levée, ou non identifiable (autre clip, mélange avec le repos). */
+  contactPhase(i: number): 'stance' | 'swing' | 'none' {
+    const f = this.ik.feet[i];
+    if (!f || this.plan.walkW < 0.5 || (this.posture && (this.posture.busy || this.posture.weight > 0.01))) return 'none';
+    const ph = (this.actions.walk.time / this.durations.walk) % 1;
+    return contactPosition(f.contacts, ph) !== null ? 'stance' : 'swing';
   }
 
   debug(): AnimDebug {
