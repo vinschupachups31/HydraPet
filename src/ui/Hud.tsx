@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
   title: { color: C.text, fontSize: 17, fontWeight: '700', marginBottom: 4 },
   line: { color: C.text, fontSize: 13, lineHeight: 18 },
   small: { color: C.muted, fontSize: 11, marginTop: 4 },
-  credits: { position: 'absolute', left: 12, right: 12, bottom: 316, color: C.muted, fontSize: 10, lineHeight: 13 },
+  credits: { position: 'absolute', left: 12, right: 12, bottom: 2, color: C.muted, fontSize: 10, lineHeight: 13 },
   bottom: { position: 'absolute', left: 12, right: 12, bottom: 24, flexDirection: 'row', gap: 8 },
   acts: { position: 'absolute', left: 12, right: 12, bottom: 140, flexDirection: 'row', gap: 6 },
   diag: { position: 'absolute', left: 12, right: 12, bottom: 256, flexDirection: 'row', gap: 6 },

@@ -47,7 +47,7 @@ function Scene({ model, shadows }: Props) {
     }
     if (!devSide) return;
     const { x, z } = overlayData.pos;
-    const d = Math.max(1.45, Math.min(3.2, 0.62 / (Math.tan(13 * Math.PI / 180) * camera.aspect))); // assez loin pour cadrer l'animal entier en portrait comme en paysage
+    const d = Math.max(1.9, Math.min(3.4, 0.62 / (Math.tan(13 * Math.PI / 180) * camera.aspect))); // assez loin pour cadrer l'animal entier en portrait comme en paysage
     camera.position.set(x + d, 0.2, z);
     camera.fov = 26;
     camera.lookAt(x, 0.15, z);

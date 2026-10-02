@@ -48,7 +48,7 @@ export default function App() {
       <View style={styles.top} pointerEvents="box-none">
         <Pressable testID="btn-back" accessibilityRole="button" onPress={back} style={styles.back}><Text style={styles.backText}>← Menu</Text></Pressable>
       </View>
-      {(view.info || !(test === 'noshadow' || test === 'scene')) && <View style={styles.report} pointerEvents="none"><Report compact /></View>}
+      {!(test === 'noshadow' || test === 'scene') && <View style={styles.report} pointerEvents="none"><Report compact /></View>}
       <StatusBar style="dark" />
     </View>
   );
