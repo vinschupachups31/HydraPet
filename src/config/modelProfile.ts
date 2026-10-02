@@ -9,7 +9,7 @@ import { FOX_RIG } from './foxRig';
 import { CAT_RIG } from './catRig';
 import { CAT_CLIP_DATA } from './catClips';
 import { CAT_ENVELOPES } from './catEnvelopes';
-import { CAT_HULL } from './catHull';
+import { CAT_HULL, CAT_HULL_VERTS } from './catHull';
 
 export interface ModelCapabilities {
   /** Paupières (os ou morph) : sans elles, les yeux ne peuvent pas se fermer. */
@@ -43,6 +43,8 @@ export interface ModelProfile {
   /** Squelette : alias → noms d'os, pattes avant, points de contact du visage, sommets extrêmes par os, enveloppes par pose. */
   rig: typeof FOX_RIG;
   hull: Record<string, number[][]>;
+  /** Indices de sommets extrêmes du maillage skinné (prioritaires sur `hull` : position exacte avec le skinning complet). */
+  hullVerts?: number[];
   envelopes: Record<string, number[][]>;
   capabilities: ModelCapabilities;
 }
@@ -75,6 +77,7 @@ export const CAT_PROFILE: ModelProfile = {
   clipData: CAT_CLIP_DATA,
   rig: CAT_RIG as unknown as typeof FOX_RIG,
   hull: CAT_HULL,
+  hullVerts: CAT_HULL_VERTS,
   envelopes: CAT_ENVELOPES,
   capabilities: { eyelids: false, jaw: true, tongue: false, ears: true, pivotClip: false, sit: 'procedural', lie: 'procedural', sleep: 'procedural', groom: 'procedural', stretch: 'procedural' },
 };

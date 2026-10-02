@@ -177,6 +177,8 @@ export class AnimationController {
       const phase = clip ? (a[clip].time / this.durations[clip]) % 1 : 0;
       const walking = !!clip && (inp.pivoting || p.locomoting) && Math.abs(inp.omega) <= this.cfg.ik.maxOmega;
       if (walking) this.ik.update(true, phase, dt); else this.ik.hold(dt);
+      this.root.updateMatrixWorld(true);
+      this.rig.groundSolve(1, 0, true);           // le corps ne s'enfonce jamais dans le sol pendant la marche ; il n'est pas abaissé (course : phase aérienne)
     }
     const gazeOk = !post || post.allowGaze;
     const k = 1 - Math.exp(-dt / 0.25);
@@ -271,6 +273,7 @@ export class AnimationController {
   contactPhase(i: number): 'stance' | 'swing' | 'none' {
     const f = this.ik.feet[i];
     if (!f || this.plan.walkW < 0.5 || (this.posture && (this.posture.busy || this.posture.weight > 0.01))) return 'none';
+    if (f.stepFrom) return 'swing';               // pas de repositionnement explicite (pied soulevé) : un déplacement voulu, pas un glissement
     const ph = (this.actions.walk.time / this.durations.walk) % 1;
     return contactPosition(f.contacts, ph) !== null ? 'stance' : 'swing';
   }

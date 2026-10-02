@@ -151,7 +151,7 @@ export function Pet({ config, source, framing }: Props) {
     const dg = ctl.diag;
     if (dg.scenario) {
       if (dg.measuring) {
-        const feet = anim.ik.feet.map((f, i) => { f.effector.getWorldPosition(tmp.v); return { x: tmp.v.x, y: tmp.v.y, z: tmp.v.z, phase: anim.contactPhase(i) }; });
+        const feet = anim.ik.feet.map((f, i) => { anim.ik.contactPoint(f, tmp.v); return { x: tmp.v.x, y: tmp.v.y, z: tmp.v.z, phase: anim.contactPhase(i) }; });
         ctl.tracker.push({ t: behavior.time, x: s.x, z: s.z, heading: s.heading, speed: loco.realSpeedRaw, omega: s.omega }, feet);
       }
       if (dg.done) {
@@ -173,7 +173,7 @@ export function Pet({ config, source, framing }: Props) {
         phase: s.phase, pivoting: s.pivoting, x: s.x, z: s.z, heading: s.heading, omega: s.omega,
         speedReq: loco.requestedSpeed, speedReal: loco.realSpeed, speedRaw: loco.realSpeedRaw, status: loco.status,
         w: [dbg.idleW, dbg.walkW, dbg.runW], rates: [dbg.walkRate, dbg.runRate], locomoting: dbg.locomoting, clipPhase: dbg.phase,
-        feet: anim.ik.feet.map((f) => f.effector.getWorldPosition(tmp.v).toArray()),
+        feet: anim.ik.feet.map((f) => anim.ik.contactPoint(f, tmp.v).toArray()),
         contact: dbg.feet.map((f) => [f.inContact, f.weight, f.error, f.released]),
         cam: state.camera.position.toArray(), screen: { headY: head.y, footY: foot.y, x: foot.x },
         gaze: [s.gazeHead, s.gazeSpine],

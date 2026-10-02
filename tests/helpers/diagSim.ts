@@ -17,7 +17,7 @@ const merge = (a: any, b: any) => { for (const k in b) { if (b[k] && typeof b[k]
 
 export interface DiagFrame { t: number; reqSpeed: number; realSpeed: number; omega: number; w: number[]; rates: number[]; phases: string[]; feet: number[][]; measuring: boolean }
 
-export async function runDiag(id: string, opts: { ik?: boolean; fps?: number; over?: any; slip?: Partial<SlipConfig>; frames?: boolean } = {}) {
+export async function runDiag(id: string, opts: { ik?: boolean; fps?: number; over?: any; slip?: Partial<SlipConfig>; frames?: boolean; onFrame?: (c: { t: number; root: THREE.Object3D; group: THREE.Group; anim: AnimationController; measuring: boolean }) => void } = {}) {
   const fps = opts.fps ?? 60, dt = 1 / fps;
   const { root, animations } = await loadFox();
   const group = new THREE.Group(); group.add(root); root.scale.setScalar(ACTIVE_PET.scale);
@@ -37,7 +37,8 @@ export async function runDiag(id: string, opts: { ik?: boolean; fps?: number; ov
     group.position.set(loco.s.x, 0, loco.s.z); group.quaternion.set(0, loco.s.q.y, 0, loco.s.q.w); group.updateMatrixWorld(true);
     anim.update(dt, { realSpeed: loco.realSpeed, omega: loco.s.omega, pivoting: loco.s.pivoting }, { head: 0, spine: 0 });
     const d = anim.debug();
-    const feet = anim.ik.feet.map((f, i) => { f.effector.getWorldPosition(v); return { x: v.x, y: v.y, z: v.z, phase: anim.contactPhase(i) }; });
+    const feet = anim.ik.feet.map((f, i) => { anim.ik.contactPoint(f, v); return { x: v.x, y: v.y, z: v.z, phase: anim.contactPhase(i) }; });
+    opts.onFrame?.({ t, root, group, anim, measuring: runner.measuring });
     if (runner.measuring) tracker.push({ t, x: loco.s.x, z: loco.s.z, heading: loco.s.heading, speed: loco.realSpeedRaw, omega: loco.s.omega }, feet);
     if (opts.frames) frames.push({ t, reqSpeed: loco.requestedSpeed, realSpeed: loco.realSpeed, omega: loco.s.omega, w: [d.idleW, d.walkW, d.runW], rates: [d.walkRate, d.runRate], phases: feet.map((f) => f.phase), feet: feet.map((f) => [f.x, f.y, f.z]), measuring: runner.measuring });
   }

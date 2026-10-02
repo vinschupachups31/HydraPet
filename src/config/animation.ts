@@ -25,6 +25,10 @@ export interface AnimationConfig {
 
 export interface FootIKConfig {
   enabled: boolean;
+  /** Part de l'écart vertical (dessous de patte → sol) corrigée pendant l'appui (0 = hauteur du clip), niveau du sol (m) et correction maximale (m). */
+  groundLock: number;
+  groundY: number;
+  maxLower: number;
   /** Clips sur lesquels les appuis sont corrigés. La course n'est pas fiable sur ce modèle (phase aérienne). */
   clips: ('walk' | 'run')[];
   /** Poids minimal de locomotion pour appliquer la correction. */
@@ -65,11 +69,14 @@ export const DEFAULT_ANIMATION: AnimationConfig = {
   nominalScale: { walk: 1.0, run: 1.0 },
   ik: {
     enabled: true,
+    groundLock: 1,
+    groundY: 0,
+    maxLower: 0.03,
     clips: ['walk'],
     minLocomotionWeight: 0.45,
     rise: 0.12,
     fall: 0.28,
-    maxCorrection: 0.085,
+    maxCorrection: 0.05,
     maxJointDelta: 0.55,
     iterations: 4,
     stepLimit: 0.4,

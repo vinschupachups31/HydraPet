@@ -10,7 +10,8 @@ import * as THREE from 'three';
 import { FootIKConfig } from '../config/animation';
 import { FootContacts } from '../config/foxClips';
 
-export interface FootChainDef { foot: string; bones: string[] }
+/** `contact` : point d'appui sous la patte, dans le repère de l'os du bout (unités du modèle) ; absent : l'origine de l'os. */
+export interface FootChainDef { foot: string; bones: string[]; contact?: [number, number, number] }
 
 export interface FootDebug { name: string; inContact: boolean; weight: number; error: number; released: boolean; correction: number }
 
@@ -74,6 +75,8 @@ interface FootState {
   def: FootChainDef;
   chain: THREE.Object3D[];
   effector: THREE.Object3D;
+  /** Décalage du point d'appui dans le repère de l'effecteur (null : origine de l'os). */
+  off: THREE.Vector3 | null;
   contacts: [number, number][];
   plant: THREE.Vector3 | null;
   wasIn: boolean;
@@ -102,11 +105,14 @@ export class FootIK {
     for (const def of defs) {
       const chain = def.bones.map((n) => root.getObjectByName(n)).filter((o): o is THREE.Object3D => !!o);
       if (chain.length !== def.bones.length) { this.missing.push(def.foot); continue; }
-      this.feet.push({ def, chain, effector: chain[chain.length - 1], contacts: contactsByFoot[def.foot] ?? [], plant: null, wasIn: false, released: false, step: 0, stepFrom: null, weight: 0, error: 0, correction: 0, minY: Infinity, held: false });
+      this.feet.push({ def, chain, effector: chain[chain.length - 1], off: def.contact ? new THREE.Vector3(...def.contact) : null, contacts: contactsByFoot[def.foot] ?? [], plant: null, wasIn: false, released: false, step: 0, stepFrom: null, weight: 0, error: 0, correction: 0, minY: Infinity, held: false });
     }
   }
 
   setConfig(cfg: FootIKConfig) { this.cfg = cfg; }
+
+  /** Point d'appui du pied en monde (dessous de la patte si le profil le définit). */
+  contactPoint(f: FootState, out: THREE.Vector3) { return f.off ? out.copy(f.off).applyMatrix4(f.effector.matrixWorld) : f.effector.getWorldPosition(out); }
 
   private release(f: FootState) { f.plant = null; f.step = 0; f.stepFrom = null; f.weight = 0; f.error = 0; f.correction = 0; }
 
@@ -116,7 +122,7 @@ export class FootIK {
     const c = this.cfg;
     if (!c.enabled || !c.holdAtRest) { for (const f of this.feet) { this.release(f); f.wasIn = false; f.released = false; f.held = false; } return; }
     for (const f of this.feet) {
-      f.effector.getWorldPosition(_e);
+      this.contactPoint(f, _e);
       f.minY = Math.min(f.minY, _e.y);
       f.wasIn = false; f.released = false;
       if (!f.plant) {
@@ -140,7 +146,7 @@ export class FootIK {
     for (const f of this.feet) {
       const u = contactPosition(f.contacts, phase);
       if (u === null) { this.release(f); f.wasIn = false; f.released = false; continue; }
-      f.effector.getWorldPosition(_e);
+      this.contactPoint(f, _e);
       f.minY = Math.min(f.minY, _e.y); const wasHeld = f.held; f.held = false;
       if (!f.wasIn) { if (!(f.plant && wasHeld)) f.plant = _e.clone(); f.released = false; f.wasIn = true; } // pose du pied : le contact est pris ici, en coordonnées monde
       if (!f.stepFrom && f.plant && c.stepDuration > 0 && Math.hypot(f.plant.x - _e.x, f.plant.z - _e.z) > c.maxCorrection) {
@@ -165,14 +171,16 @@ export class FootIK {
       }
       f.weight = env;
       if (env < 1e-3) { f.correction = 0; continue; }
-      _t.set(_e.x + dx * env, _e.y, _e.z + dz * env); // la hauteur reste celle de l'animation : seul le glissement horizontal est corrigé
+      // glissement horizontal corrigé ; la hauteur rejoint le sol (dessous de la patte à y = 0) selon `groundLock`, plafonnée à `maxLower` : jamais de pied suspendu pendant un appui
+      const gy = c.groundLock > 0 ? _e.y - Math.max(-c.maxLower, Math.min(c.maxLower, _e.y - c.groundY)) * env * c.groundLock : _e.y;
+      _t.set(_e.x + dx * env, gy, _e.z + dz * env);
       this.solve(f, _t);
     }
   }
 
   /** CCD plafonné : chaque articulation tourne peu, et jamais de plus de `maxJointDelta` par rapport à la pose animée. */
   private solve(f: FootState, target: THREE.Vector3) {
-    f.correction = solveChain(f.chain, f.effector, null, target, this.cfg);
+    f.correction = solveChain(f.chain, f.effector, f.off, target, this.cfg);
   }
 
   debug(): FootDebug[] {

@@ -37,6 +37,9 @@ export class PoseRig {
   private parentBindQ = {} as Record<BoneKey, THREE.Quaternion>;
   private hipRest = new THREE.Vector3();
   private hullPts: { bone: THREE.Object3D; p: THREE.Vector3 }[] = [];
+  /** Sommets extrêmes SKINNÉS (position exacte : jusqu'à 4 os pondérés) quand le profil fournit des indices (`hullVerts`). */
+  private skinHull: { bones: THREE.Object3D[]; w: number[]; local: THREE.Vector3[] }[] = [];
+  private skinMesh: THREE.SkinnedMesh | null = null;
   /** Unités du modèle par centimètre (échelle de référence). */
   readonly cm: number;
   /** Mètres par unité du modèle (échelle réelle de l'objet racine). */
@@ -64,7 +67,18 @@ export class PoseRig {
       this.parentBindQ[k] = pq.clone();
       if (k === 'hip') { m.copy(pw).invert().multiply(bindWorld.get(b)!).decompose(pos, q, sc); this.hipRest.copy(pos); }
     }
-    for (const [name, pts] of Object.entries(FOX_HULL)) {
+    const verts = profile.hullVerts;
+    if (skin && verts?.length) {
+      const sk = skin as THREE.SkinnedMesh, g = sk.geometry, pos = g.attributes.position, si = g.attributes.skinIndex, sw = g.attributes.skinWeight;
+      this.skinMesh = sk;
+      for (const i of verts) {
+        const v = new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(sk.bindMatrix);
+        const e = { bones: [] as THREE.Object3D[], w: [] as number[], local: [] as THREE.Vector3[] };
+        for (let k = 0; k < 4; k++) { const w = sw.getComponent(i, k); if (w < 1e-4) continue; const bi = si.getComponent(i, k); e.bones.push(sk.skeleton.bones[bi]); e.w.push(w); e.local.push(v.clone().applyMatrix4(sk.skeleton.boneInverses[bi])); }
+        this.skinHull.push(e);
+      }
+    }
+    for (const [name, pts] of this.skinHull.length ? [] : Object.entries(FOX_HULL)) {
       const bone = root.getObjectByName(name);
       if (bone) for (const p of pts) this.hullPts.push({ bone, p: new THREE.Vector3(p[0], p[1], p[2]) });
     }
@@ -104,23 +118,33 @@ export class PoseRig {
   hullWorld(out: THREE.Vector3[]) {
     this.root.updateMatrixWorld(true);
     out.length = 0;
+    if (this.skinHull.length) { for (let i = 0; i < this.skinHull.length; i++) out.push(this.skinnedPoint(this.skinHull[i], new THREE.Vector3())); return out; }
     for (const { bone, p } of this.hullPts) out.push(p.clone().applyMatrix4(bone.matrixWorld));
     return out;
+  }
+
+  /** Position monde exacte d'un sommet skinné : bindMatrixInverse · Σ wᵢ (osᵢ · inverseᵢ) · bind · v, puis matrice du maillage. */
+  private skinnedPoint(e: { bones: THREE.Object3D[]; w: number[]; local: THREE.Vector3[] }, out: THREE.Vector3) {
+    let x = 0, y = 0, z = 0;
+    for (let k = 0; k < e.bones.length; k++) { _w.copy(e.local[k]).applyMatrix4(e.bones[k].matrixWorld); x += _w.x * e.w[k]; y += _w.y * e.w[k]; z += _w.z * e.w[k]; }
+    return out.set(x, y, z);
   }
 
   /** Point le plus bas du maillage (m, monde). Sommets extrêmes par os : suffisant pour tenir le corps au-dessus du sol. */
   lowestY(): number {
     this.root.updateMatrixWorld(true);
     let m = Infinity;
+    if (this.skinHull.length) { for (let i = 0; i < this.skinHull.length; i++) { const y = this.skinnedPoint(this.skinHull[i], _v).y; if (y < m) m = y; } return m; }
     for (const { bone, p } of this.hullPts) { _v.copy(p).applyMatrix4(bone.matrixWorld); if (_v.y < m) m = _v.y; }
     return m;
   }
 
   /** Garde le corps posé : déplace le bassin (articulation, pas le modèle) verticalement pour que le point le plus bas touche le sol.
    *  `weight` pondère la correction (0 = rien). La hauteur de la pose animée n'est pas touchée quand le poids est nul. */
-  groundSolve(weight: number, lift = 0) {
+  groundSolve(weight: number, lift = 0, penetrationOnly = false) {
     if (weight <= 1e-4 || !this.bones.hip) { this.groundShift = 0; return; }
     const need = -this.lowestY() + lift;
+    if (penetrationOnly && need <= 0) { this.groundShift = 0; return; }   // en locomotion : jamais d'abaissement (phases aériennes de la course)
     const dy = need > 0 && lift === 0 ? need : need * weight; // pénétration du sol : corrigée en entier, quel que soit le poids ; lévitation : corrigée selon le poids de la pose
     this.groundShift = dy;
     const hip = this.bones.hip;
