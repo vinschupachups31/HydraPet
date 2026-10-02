@@ -203,6 +203,7 @@ export class AnimationController {
     applyPitchChain(this.headChain, this.gazePitchNow, this.root);
     if (this.expression && L.expression) {      // oreilles : pas pendant la toilette (la patte touche l'oreille)
       this.expression.weight = post && post.state === 'Grooming' ? 0 : 1;
+      this.expression.breathWeight = post && post.state === 'Sleeping' ? post.weight : 0;
       this.expression.update(dt);
     }
     this.root.updateMatrixWorld(true);           // 5. matrices avant le rendu

@@ -46,3 +46,17 @@ test('couches de diagnostic : « clip seul » ne laisse aucune correction (sol, 
   for (let i = 0; i < 30; i++) s.anim.update(1 / 60, { realSpeed: 0.3, omega: 0, pivoting: false }, { head: 0.6, spine: 0.3, pitch: 0.2 });
   assert.ok(head.angleTo(s.root.getObjectByName('Head')!.quaternion) > 0.05, 'le mode complet applique le regard');
 });
+
+test('respiration : le thorax bascule légèrement pendant le sommeil, sans changer l\'échelle des os', async () => {
+  const { root } = await loadFox();
+  const bone = root.getObjectByName('Spine_3')!;
+  const layer = new ExpressionLayer(root, { ...cfg, twitchEvery: [1000, 1000], breath: { bone: 'Spine_3', deg: 0.9, hz: 0.28 } }, 1);
+  const q0 = bone.quaternion.clone(), s0 = bone.scale.clone();
+  layer.breathWeight = 1; layer.update(0.9); // ≈ quart de cycle : amplitude maximale
+  const a = q0.angleTo(bone.quaternion) * 57.3;
+  assert.ok(a > 0.5 && a < 1.2, `amplitude ${a.toFixed(2)}°`);
+  assert.ok(bone.scale.distanceTo(s0) < 1e-9, 'échelle inchangée');
+  const q1 = bone.quaternion.clone(); bone.quaternion.copy(q0); layer.breathWeight = 0; layer.update(0.1);
+  assert.ok(bone.quaternion.angleTo(q0) < 1e-9, 'aucune respiration hors sommeil');
+  void q1;
+});

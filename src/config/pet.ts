@@ -77,7 +77,7 @@ export const CAT_REALISTIC: PetModelConfig = {
     { foot: 'Back_Leg_Tip_R', bones: ['Back_Leg_Upper_R', 'Back_Leg_Lower_R', 'Back_Leg_Ankle_R', 'Back_Leg_Tip_R'], contact: [-0.0023, -0.0452, -0.0024] },
   ],
   turn: {},
-  expression: { ears: ['Ear_L', 'Ear_R'], twitchEvery: [3, 9], twitchTime: 0.22, twitchDeg: { back: 14, out: 10 } },
+  expression: { ears: ['Ear_L', 'Ear_R'], twitchEvery: [3, 9], twitchTime: 0.22, twitchDeg: { back: 14, out: 10 }, breath: { bone: 'Spine_3', deg: 0.9, hz: 0.28 } },
 };
 
 export const ACTIVE_PET: PetModelConfig = CAT_REALISTIC;

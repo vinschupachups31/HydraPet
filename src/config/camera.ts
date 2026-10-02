@@ -23,7 +23,7 @@ export const DEFAULT_FRAMING: FramingConfig = {
   petHeight: 0.36,
   approachRatio: 0.28,
   cameraY: 0.85,
-  approachFeetY: 0.74,
+  approachFeetY: 0.68,
   fovPortrait: 43.6, // ≈ 45 mm sur le petit côté d'un capteur 24 × 36
   fovLandscape: 32,
   blendAspect: [0.75, 1.4],
