@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as THREE from 'three';
 import { DEFAULT_ANIMATION } from '../src/config/animation';
-import { CLIP_DATA } from '../src/config/foxClips';
+import { ACTIVE_PROFILE } from '../src/config/modelProfile';
+const CLIP_DATA = ACTIVE_PROFILE.clipData;
 import { FootIK, contactEnvelope, contactPosition } from '../src/pet/footIK';
 
 const cfg = { ...DEFAULT_ANIMATION.ik };

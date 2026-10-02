@@ -1,3 +1,4 @@
+// @ts-nocheck
 /* Repères du chat en espace scène (x avant, y haut, z latéral ; gauche = -z) : tête, oreilles, nez, menton, pattes, queue. */
 import * as THREE from 'three';
 import { loadFox } from '../../tests/helpers/loadFox';

@@ -2,10 +2,11 @@
 import * as THREE from 'three';
 import { DEFAULT_ANIMATION } from '../../src/config/animation';
 import { DEFAULT_BEHAVIOR as B } from '../../src/config/behavior';
-import { CLIP_DATA } from '../../src/config/foxClips';
-import { FOX_STANDIN } from '../../src/config/pet';
+import { ACTIVE_PROFILE } from '../../src/config/modelProfile';
+const CLIP_DATA = ACTIVE_PROFILE.clipData;
+import { ACTIVE_PET } from '../../src/config/pet';
 import { DEFAULT_TURN } from '../../src/config/turning';
-import { ContactTracker, DEFAULT_SLIP, SlipConfig } from '../../src/pet/contactMetrics';
+import { ContactTracker, SlipConfig, slipConfigFor } from '../../src/pet/contactMetrics';
 import { DIAG_SCENARIOS, DiagRunner } from '../../src/pet/diagnostic';
 import { AnimationController } from '../../src/pet/animation';
 import { OBSTACLES, WalkArea } from '../../src/pet/layout';
@@ -19,14 +20,14 @@ export interface DiagFrame { t: number; reqSpeed: number; realSpeed: number; ome
 export async function runDiag(id: string, opts: { ik?: boolean; fps?: number; over?: any; slip?: Partial<SlipConfig>; frames?: boolean } = {}) {
   const fps = opts.fps ?? 60, dt = 1 / fps;
   const { root, animations } = await loadFox();
-  const group = new THREE.Group(); group.add(root); root.scale.setScalar(FOX_STANDIN.scale);
+  const group = new THREE.Group(); group.add(root); root.scale.setScalar(ACTIVE_PET.scale);
   const cfg = JSON.parse(JSON.stringify(DEFAULT_ANIMATION)); merge(cfg, opts.over ?? {}); cfg.ik.enabled = opts.ik ?? true;
-  const anim = new AnimationController(root, animations, FOX_STANDIN, cfg, CLIP_DATA);
+  const anim = new AnimationController(root, animations, ACTIVE_PET, cfg, CLIP_DATA);
   const area = new WalkArea(OBSTACLES);
-  const nw = CLIP_DATA.Walk.nominalSpeed * FOX_STANDIN.scale, nr = CLIP_DATA.Run.nominalSpeed * FOX_STANDIN.scale;
+  const nw = CLIP_DATA.Walk.nominalSpeed * ACTIVE_PET.scale, nr = CLIP_DATA.Run.nominalSpeed * ACTIVE_PET.scale;
   const loco = new LocomotionController({ ...DEFAULT_TURN, vWalk: nw, vRun: nr, arriveRadius: B.arrive.radius }, area, B.bodyRadius, B.stall, 0, 0.3, 0, B.arrive.hysteresis, 0.06);
   const runner = new DiagRunner({ goTo: (x, z, g) => loco.goTo(x, z, g), isMoving: () => loco.isMoving, face: (x, z) => loco.faceTowards(x, z), isFacing: () => loco.status === 'faced' });
-  const tracker = new ContactTracker({ ...DEFAULT_SLIP, ...(opts.slip ?? {}) });
+  const tracker = new ContactTracker({ ...slipConfigFor(ACTIVE_PROFILE.bodyLength, nw), ...(opts.slip ?? {}) });
   const v = new THREE.Vector3(), frames: DiagFrame[] = [];
   runner.start(id);
   let t = 0;

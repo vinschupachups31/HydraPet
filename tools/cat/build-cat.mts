@@ -1,3 +1,4 @@
+// @ts-nocheck
 /* Construit assets/models/cat-rigged.glb : le chat statique (assets/models/cat-source.glb, CC-BY 4.0, toti.shroom) rigé avec le squelette à 49 os
    et les 14 animations de Mesh2Motion (assets/models/m2m-fox.glb : squelette et animations CC0 Quaternius).
    Principe : les rotations d'os au repos et les clips sont conservés tels quels ; seules les POSITIONS des articulations sont recalées sur le chat

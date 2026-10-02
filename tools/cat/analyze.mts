@@ -1,3 +1,4 @@
+// @ts-nocheck
 /* Analyse du chat statique en espace scène (nœuds appliqués) : silhouette de profil et de dessus, repères pour caler le squelette.
    Usage : node --import tsx tools/cat/analyze.mts */
 import * as THREE from 'three';

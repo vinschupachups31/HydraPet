@@ -1,6 +1,7 @@
 import { DEFAULT_BEHAVIOR, BehaviorConfig } from '../../src/config/behavior';
-import { CLIP_DATA } from '../../src/config/foxClips';
-import { FOX_STANDIN } from '../../src/config/pet';
+import { ACTIVE_PROFILE } from '../../src/config/modelProfile';
+const CLIP_DATA = ACTIVE_PROFILE.clipData;
+import { ACTIVE_PET } from '../../src/config/pet';
 import { DEFAULT_TURN } from '../../src/config/turning';
 import { BehaviorController, BehaviorState } from '../../src/pet/behavior';
 import { computeFraming } from '../../src/pet/framing';
@@ -16,7 +17,7 @@ export function makeSim(opts: { seed?: number; aspect?: number; cfg?: BehaviorCo
   const area = new WalkArea(OBSTACLES);
   area.view = framing;
   if (opts.guard !== false) area.guard = new FrameGuard(() => framing);
-  const nominalWalk = CLIP_DATA.Walk.nominalSpeed * FOX_STANDIN.scale, nominalRun = CLIP_DATA.Run.nominalSpeed * FOX_STANDIN.scale;
+  const nominalWalk = CLIP_DATA.Walk.nominalSpeed * ACTIVE_PET.scale, nominalRun = CLIP_DATA.Run.nominalSpeed * ACTIVE_PET.scale;
   const turn = { ...DEFAULT_TURN, vWalk: nominalWalk, vRun: nominalRun, arriveRadius: cfg.arrive.radius };
   const loco = new LocomotionController(turn, area, cfg.bodyRadius, cfg.stall, opts.x ?? 0, opts.z ?? 0.3, 0, cfg.arrive.hysteresis, 0.06);
   const rng = mulberry32(opts.seed ?? 1);

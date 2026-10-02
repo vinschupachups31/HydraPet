@@ -1,6 +1,6 @@
 /* Enveloppes conservatrices par pose (sommets extrêmes du maillage dans le repère de l'animal, mètres) : servent à vérifier,
    AVANT de choisir une destination, que le compagnon entier (tête, queue, pattes) reste dans le cadre dans la pose attendue.
-   Usage : node --import tsx tools/extract-envelopes.mts > src/config/foxEnvelopes.ts */
+   Usage : node --import tsx tools/extract-envelopes.mts > src/config/catEnvelopes.ts */
 import * as THREE from 'three';
 import { makeRigSim } from '../tests/helpers/rigSim';
 
@@ -30,4 +30,4 @@ for (const [k, all] of Object.entries(acc)) {
   for (const d of dirs) { let b = all[0], bv = -Infinity; for (const p of all) { const v = p.x * d[0] + p.y * d[1] + p.z * d[2]; if (v > bv) { bv = v; b = p; } } keep.set(`${b.x.toFixed(2)},${b.y.toFixed(2)},${b.z.toFixed(2)}`, b); }
   out[k] = [...keep.values()].map((p) => [+p.x.toFixed(3), +p.y.toFixed(3), +p.z.toFixed(3)]);
 }
-console.log(`/** Généré par tools/extract-envelopes.mts : enveloppes conservatrices par pose (m ; x gauche, y haut, z avant ; origine au sol sous le bassin). */\nexport const FOX_ENVELOPES: Record<string, number[][]> = ${JSON.stringify(out)};`);
+console.log(`/** Généré par tools/extract-envelopes.mts : enveloppes conservatrices par pose (m ; x gauche, y haut, z avant ; origine au sol sous le bassin). */\nexport const CAT_ENVELOPES: Record<string, number[][]> = ${JSON.stringify(out)};`);

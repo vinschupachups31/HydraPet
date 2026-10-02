@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { DEFAULT_ANIMATION } from '../../src/config/animation';
-import { CLIP_DATA } from '../../src/config/foxClips';
-import { FOX_STANDIN } from '../../src/config/pet';
+import { ACTIVE_PROFILE } from '../../src/config/modelProfile';
+import { ACTIVE_PET } from '../../src/config/pet';
 import { AnimationController } from '../../src/pet/animation';
 import { PostureController } from '../../src/pet/posture';
 import { mulberry32 } from '../../src/pet/rng';
@@ -10,9 +10,9 @@ import { loadFox } from './loadFox';
 /** Vrai modèle + contrôleur d'animation + postures, sans comportement ni rendu : pour mesurer contacts, sol et tête. */
 export async function makeRigSim(seed = 1) {
   const { root, animations } = await loadFox();
-  const group = new THREE.Group(); group.add(root); root.scale.setScalar(FOX_STANDIN.scale);
+  const group = new THREE.Group(); group.add(root); root.scale.setScalar(ACTIVE_PET.scale);
   const cfg = JSON.parse(JSON.stringify(DEFAULT_ANIMATION));
-  const anim = new AnimationController(root, animations, FOX_STANDIN, cfg, CLIP_DATA);
+  const anim = new AnimationController(root, animations, ACTIVE_PET, cfg, ACTIVE_PROFILE.clipData);
   const posture = new PostureController(mulberry32(seed));
   anim.posture = posture;
   group.position.set(0, 0, 0); group.updateMatrixWorld(true);

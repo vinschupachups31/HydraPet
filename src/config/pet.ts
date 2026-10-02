@@ -1,12 +1,15 @@
 /** Contrat d'un animal : fichier, échelle, noms des clips, vitesses mesurées (voir tools/analyze-clips.mjs). */
 import { CLIP_DATA } from './foxClips';
-import { FOX_PROFILE } from './modelProfile';
+import { CAT_CLIP_DATA } from './catClips';
+import { CAT_PROFILE, FOX_PROFILE } from './modelProfile';
 import { FootChainDef } from '../pet/footIK';
 import { TurnConfig } from './turning';
 
 export interface PetModelConfig {
   id: string;
   label: string;
+  /** Fichier du modèle (relatif à la racine du dépôt) : outils et tests. */
+  file: string;
   /** Mètres par unité du modèle. */
   scale: number;
   /** Rotation (rad) à ajouter pour que « l'avant » du modèle soit +Z. */
@@ -31,6 +34,7 @@ export interface PetModelConfig {
 export const FOX_STANDIN: PetModelConfig = {
   id: 'fox-standin',
   label: 'Renard (stand-in)',
+  file: 'assets/models/fox.glb',
   scale: FOX_PROFILE.scale,
   yawOffset: 0,
   clips: { idle: 'Survey', walk: 'Walk', run: 'Run' },
@@ -49,3 +53,27 @@ export const FOX_STANDIN: PetModelConfig = {
 };
 
 export const ROOM = { width: 4.2, depth: 3.6, height: 2.6 } as const;
+
+/** Chat réaliste : maillage toti.shroom (CC BY 4.0) sur le squelette Mesh2Motion (49 os). Voir ASSETS.md. */
+export const CAT_REALISTIC: PetModelConfig = {
+  id: 'cat-realistic',
+  label: 'Chat roux tigré',
+  file: 'assets/models/cat-rigged.glb',
+  scale: CAT_PROFILE.scale,
+  yawOffset: 0,
+  clips: { idle: 'Idle', walk: 'Walk', run: 'Run' },
+  groundSpeed: { walk: CAT_CLIP_DATA.Walk.nominalSpeed, run: CAT_CLIP_DATA.Run.nominalSpeed },
+  headBone: 'Head',
+  footBones: ['Back_Leg_Tip_L', 'Back_Leg_Tip_R', 'Front_Leg_Tip_L', 'Front_Leg_Tip_R'],
+  headBones: [['Spine_4', 0.55], ['Head', 0.45]],
+  spineBones: [['Spine_2', 0.4], ['Spine_3', 0.6]],
+  footChains: [
+    { foot: 'Front_Leg_Tip_R', bones: ['Front_Leg_Upper_R', 'Front_Leg_Lower_R', 'Front_Leg_Tip_R'] },
+    { foot: 'Front_Leg_Tip_L', bones: ['Front_Leg_Upper_L', 'Front_Leg_Lower_L', 'Front_Leg_Tip_L'] },
+    { foot: 'Back_Leg_Tip_L', bones: ['Back_Leg_Upper_L', 'Back_Leg_Lower_L', 'Back_Leg_Ankle_L', 'Back_Leg_Tip_L'] },
+    { foot: 'Back_Leg_Tip_R', bones: ['Back_Leg_Upper_R', 'Back_Leg_Lower_R', 'Back_Leg_Ankle_R', 'Back_Leg_Tip_R'] },
+  ],
+  turn: {},
+};
+
+export const ACTIVE_PET: PetModelConfig = CAT_REALISTIC;

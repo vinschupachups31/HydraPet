@@ -5,13 +5,13 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { DEFAULT_ANIMATION } from '../config/animation';
 import { DEFAULT_BEHAVIOR } from '../config/behavior';
-import { CLIP_DATA } from '../config/foxClips';
+import { ACTIVE_PROFILE } from '../config/modelProfile';
 import { PetModelConfig } from '../config/pet';
 import { DEFAULT_TURN } from '../config/turning';
 import { diag } from '../diag/diagStore';
 import { AnimationController } from './animation';
 import { BehaviorController } from './behavior';
-import { ContactTracker, slipThreshold } from './contactMetrics';
+import { ContactTracker, slipConfigFor, slipThreshold } from './contactMetrics';
 import { debugStore } from './debugStore';
 import { DIAG_SCENARIOS, DiagRunner } from './diagnostic';
 import { FrameGuard } from './frameGuard';
@@ -51,7 +51,7 @@ export function Pet({ config, source, framing }: Props) {
     const seed = (globalThis as { __HP_SEED__?: number }).__HP_SEED__;
     const rng = seed !== undefined ? mulberry32(seed) : Math.random;
     const animCfg = DEFAULT_ANIMATION;
-    const anim = new AnimationController(root, gltf.animations, config, animCfg, CLIP_DATA);
+    const anim = new AnimationController(root, gltf.animations, config, animCfg, ACTIVE_PROFILE.clipData);
     const bcfg = DEFAULT_BEHAVIOR;
     // vitesse de croisière = vitesse nominale du clip : cadence de lecture 1,0 (aucun patinage dû à un décalage de référence)
     const turn = { ...DEFAULT_TURN, vWalk: anim.nominalWalk, vRun: anim.nominalRun, arriveRadius: bcfg.arrive.radius, ...config.turn };
@@ -66,7 +66,7 @@ export function Pet({ config, source, framing }: Props) {
       approachPoint: () => framingRef.current.approach,
       cameraXZ: () => ({ x: framingRef.current.position[0], z: framingRef.current.position[2] }),
     });
-    const tracker = new ContactTracker();
+    const tracker = new ContactTracker(slipConfigFor(ACTIVE_PROFILE.bodyLength, config.groundSpeed.walk * config.scale));
     const diag = new DiagRunner({ goTo: (x, z, g) => loco.goTo(x, z, g), isMoving: () => loco.isMoving, face: (x, z) => loco.faceTowards(x, z), isFacing: () => loco.status === 'faced' });
     return { anim, loco, behavior, posture, animCfg, area, bcfg, tracker, diag };
   }, [root, gltf, config]);

@@ -33,8 +33,8 @@ test('appuis : la synchronisation + IK réduit le glissement latéral des virage
 test('blocage : le corps et la marche s\'arrêtent ensemble (pas de pattes qui continuent contre l\'obstacle)', async () => {
   const THREE = await import('three');
   const { DEFAULT_ANIMATION } = await import('../src/config/animation');
-  const { CLIP_DATA } = await import('../src/config/foxClips');
-  const { FOX_STANDIN } = await import('../src/config/pet');
+  const CLIP_DATA = (await import('../src/config/modelProfile')).ACTIVE_PROFILE.clipData;
+  const { ACTIVE_PET } = await import('../src/config/pet');
   const { DEFAULT_TURN } = await import('../src/config/turning');
   const { DEFAULT_BEHAVIOR: B } = await import('../src/config/behavior');
   const { AnimationController } = await import('../src/pet/animation');
@@ -42,10 +42,10 @@ test('blocage : le corps et la marche s\'arrêtent ensemble (pas de pattes qui c
   const { LocomotionController } = await import('../src/pet/locomotor');
   const { loadFox } = await import('./helpers/loadFox');
   const { root, animations } = await loadFox();
-  const group = new THREE.Group(); group.add(root); root.scale.setScalar(FOX_STANDIN.scale);
-  const anim = new AnimationController(root, animations, FOX_STANDIN, JSON.parse(JSON.stringify(DEFAULT_ANIMATION)), CLIP_DATA);
-  const nw = CLIP_DATA.Walk.nominalSpeed * FOX_STANDIN.scale;
-  const loco = new LocomotionController({ ...DEFAULT_TURN, vWalk: nw, vRun: CLIP_DATA.Run.nominalSpeed * FOX_STANDIN.scale, arriveRadius: B.arrive.radius }, new WalkArea(OBSTACLES), B.bodyRadius, B.stall, 0.9, -0.1, Math.PI, B.arrive.hysteresis, 0.06);
+  const group = new THREE.Group(); group.add(root); root.scale.setScalar(ACTIVE_PET.scale);
+  const anim = new AnimationController(root, animations, ACTIVE_PET, JSON.parse(JSON.stringify(DEFAULT_ANIMATION)), CLIP_DATA);
+  const nw = CLIP_DATA.Walk.nominalSpeed * ACTIVE_PET.scale;
+  const loco = new LocomotionController({ ...DEFAULT_TURN, vWalk: nw, vRun: CLIP_DATA.Run.nominalSpeed * ACTIVE_PET.scale, arriveRadius: B.arrive.radius }, new WalkArea(OBSTACLES), B.bodyRadius, B.stall, 0.9, -0.1, Math.PI, B.arrive.hysteresis, 0.06);
   loco.goTo(1.0, -1.3); // but dans le canapé
   const dt = 1 / 60; let blockedAt = -1, worstAfter = 0, speedAfter = 0;
   for (let i = 0; i < 60 * 14; i++) {

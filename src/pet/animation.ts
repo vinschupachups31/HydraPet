@@ -9,7 +9,8 @@ import { FootDebug, FootIK, contactPosition, solveChain } from './footIK';
 import { applyChain, applyPitchChain, resolveBones } from './headLook';
 import { PostureController } from './posture';
 import { PoseRig } from './rig';
-import { FOX_RIG } from '../config/foxRig';
+import { ACTIVE_PROFILE } from '../config/modelProfile';
+const FOX_RIG = ACTIVE_PROFILE.rig;
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const smooth = (e0: number, e1: number, x: number) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); };
@@ -37,14 +38,19 @@ export interface AnimPlan {
 
 export const newPlan = (): AnimPlan => ({ locomoting: false, running: false, idleW: 1, walkW: 0, runW: 0, walkRate: 1, runRate: 1, idleRate: 1 });
 
+const REF_WALK = 0.565, REF_RUN = 0.858;
+
 /** Met le plan à jour. Dépend uniquement de dt : mêmes résultats à 30 et 60 images/s (lissages exponentiels). */
 export function planAnimation(p: AnimPlan, inp: AnimInput, dt: number, cfg: AnimationConfig, nominalWalk: number, nominalRun: number): AnimPlan {
   const v = inp.realSpeed;
+  // les seuils de la config ont été réglés sur la marche (0,565 m/s) et la course (0,858 m/s) du renard : ils suivent les vitesses nominales du modèle
+  const kw = nominalWalk / REF_WALK, kr0 = nominalRun / REF_RUN;
+  const startSpeed = cfg.startSpeed * kw, stopSpeed = cfg.stopSpeed * kw, runStartSpeed = cfg.runStartSpeed * kr0, runStopSpeed = cfg.runStopSpeed * kr0;
   // deux seuils distincts : démarrer au-dessus de startSpeed, s'arrêter sous stopSpeed
-  if (!p.locomoting && v > cfg.startSpeed) p.locomoting = true;
-  else if (p.locomoting && v < cfg.stopSpeed) p.locomoting = false;
-  if (!p.running && v > cfg.runStartSpeed) p.running = true;
-  else if (p.running && v < cfg.runStopSpeed) p.running = false;
+  if (!p.locomoting && v > startSpeed) p.locomoting = true;
+  else if (p.locomoting && v < stopSpeed) p.locomoting = false;
+  if (!p.running && v > runStartSpeed) p.running = true;
+  else if (p.running && v < runStopSpeed) p.running = false;
 
   let tIdle = 1, tWalk = 0, tRun = 0, wRate = clamp(v / nominalWalk, cfg.walkRate[0], cfg.walkRate[1]), rRate = clamp(v / nominalRun, cfg.runRate[0], cfg.runRate[1]);
   if (inp.pivoting) {
@@ -54,8 +60,8 @@ export function planAnimation(p: AnimPlan, inp: AnimInput, dt: number, cfg: Anim
     wRate = clamp(Math.abs(inp.omega) / cfg.stepOmegaRef, 0.35, 1.3);
   } else if (p.locomoting) {
     // le poids de locomotion suit la vitesse réelle : à l'arrêt du corps, les pattes s'arrêtent aussi
-    const w = smooth(cfg.stopSpeed, Math.max(cfg.startSpeed * 2.2, cfg.walkRate[0] * nominalWalk), v);
-    const runShare = p.running ? smooth(cfg.runStopSpeed, cfg.runStartSpeed * 1.15, v) : 0;
+    const w = smooth(stopSpeed, Math.max(startSpeed * 2.2, cfg.walkRate[0] * nominalWalk), v);
+    const runShare = p.running ? smooth(runStopSpeed, runStartSpeed * 1.15, v) : 0;
     tIdle = 1 - w; tWalk = w * (1 - runShare); tRun = w * runShare;
   }
   const kUp = 1 - Math.exp(-dt / cfg.weightSmoothing), kDown = 1 - Math.exp(-dt / cfg.weightFallSmoothing), kr = 1 - Math.exp(-dt / cfg.rateSmoothing);

@@ -6,7 +6,7 @@ import { NodeIO } from '@gltf-transform/core';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
-const [file, out, ...clipNames] = process.argv.slice(2);
+const [file, out, ...rest] = process.argv.slice(2); const clipNames = rest.filter((a) => !a.startsWith('--'));
 const feetArg = (process.argv.find((a) => a.startsWith('--feet=')) || '').split('=')[1];
 const io = new NodeIO();
 const doc = await io.read(file);
@@ -49,7 +49,7 @@ for (const cn of clipNames) {
   });
   const speeds = per.map((p) => p.meanBackSpeed).filter((v) => v > 0);
   const nominal = speeds.reduce((a, c) => a + c, 0) / speeds.length;
-  result.push({ name: cn, duration: +clip.duration.toFixed(3), nominalSpeed: +nominal.toFixed(1), feet: per.map(({ bone, contacts }) => ({ bone, contacts })), debug: per.map((p) => `${p.bone}: ${(100 * p.ratio).toFixed(0)} % au sol, recul moyen ${p.meanBackSpeed.toFixed(0)} u/s, appuis ${JSON.stringify(p.contacts)}`) });
+  result.push({ name: cn, duration: +clip.duration.toFixed(3), nominalSpeed: +nominal.toFixed(4), feet: per.map(({ bone, contacts }) => ({ bone, contacts })), debug: per.map((p) => `${p.bone}: ${(100 * p.ratio).toFixed(0)} % au sol, recul moyen ${p.meanBackSpeed.toFixed(3)} u/s, appuis ${JSON.stringify(p.contacts)}`) });
 }
 result.forEach((r) => { console.log(`${r.name}: durée ${r.duration} s, vitesse nominale ${r.nominalSpeed} u/s`); r.debug.forEach((d) => console.log('   ' + d)); });
 const ts = `/* Généré par tools/extract-contacts.mjs depuis ${file.split('/').pop()} : ne pas modifier à la main.

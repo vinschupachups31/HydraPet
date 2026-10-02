@@ -1,6 +1,6 @@
 /* Points d'appui du maillage : pour chaque os, quelques sommets extrêmes (dans le repère de l'os) —
    servent à garder le corps au-dessus du sol et à tester les contacts patte/museau sans calculer tout le maillage.
-   Usage : node --import tsx tools/extract-hull.mts > src/config/foxHull.ts */
+   Usage : node --import tsx tools/extract-hull.mts > src/config/catHull.ts */
 import * as THREE from 'three';
 import { loadFox } from '../tests/helpers/loadFox';
 const { root } = await loadFox();
@@ -23,4 +23,4 @@ for (const [name, pts] of Object.entries(per)) {
   for (const d of dirs) { let b = pts[0], bv = -Infinity; for (const p of pts) { const s = p.x * d[0] + p.y * d[1] + p.z * d[2]; if (s > bv) { bv = s; b = p; } } keep.set(`${b.x.toFixed(2)},${b.y.toFixed(2)},${b.z.toFixed(2)}`, b); }
   out[name] = [...keep.values()].map((p) => [+p.x.toFixed(1), +p.y.toFixed(1), +p.z.toFixed(1)]);
 }
-console.log(`/** Généré par tools/extract-hull.mts : sommets extrêmes du maillage par os (repère local de l'os, unités du modèle). */\nexport const FOX_HULL: Record<string, number[][]> = ${JSON.stringify(out)};`);
+console.log(`/** Généré par tools/extract-hull.mts : sommets extrêmes du maillage par os (repère local de l'os, unités du modèle). */\nexport const CAT_HULL: Record<string, number[][]> = ${JSON.stringify(out)};`);

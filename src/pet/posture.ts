@@ -2,13 +2,14 @@
  *  Logique pure (aucune dépendance au moteur 3D) : elle produit une pose « à plat » (voir rig.ts) et un poids de couche.
  *  Une seule séquence à la fois : jamais deux transitions de posture superposées. Les ordres sont des BUTS (`request`) ;
  *  le contrôleur enchaîne lui-même les étapes (ex. endormi → couché → assis → debout). Aucun timer ni callback : tout avance dans `update(dt)`. */
-import { BoneKey, FOX_BONES } from '../config/foxRig';
+import type { BoneKey } from '../config/foxRig';
+import { ACTIVE_PROFILE } from '../config/modelProfile';
 import { EDGES, POSES, Posture, PostureState, SEQUENCES, SequenceDef, blend, mirrorPose } from '../config/postures';
-import { FOX_RIG } from '../config/foxRig';
+const FOX_RIG = ACTIVE_PROFILE.rig;
 import { Pose, compilePose, newPoseArray, POSE_SIZE } from './rig';
 import { Rng } from './rng';
 
-const BONE_ORDER = Object.keys(FOX_BONES) as BoneKey[];
+const BONE_ORDER = Object.keys(FOX_RIG.bones) as BoneKey[];
 const idx = (k: BoneKey, axis: 0 | 1 | 2) => BONE_ORDER.indexOf(k) * 3 + axis;
 const smooth = (x: number) => { const t = Math.max(0, Math.min(1, x)); return t * t * (3 - 2 * t); };
 

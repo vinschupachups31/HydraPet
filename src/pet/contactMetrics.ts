@@ -25,6 +25,8 @@ export interface SlipConfig {
   minRest: number;
 }
 export const DEFAULT_SLIP: SlipConfig = { bodyLength: 0.4, relThreshold: 0.04, settle: 0.1, stopSpeed: 0.05, turnOmega: 0.25, minRest: 0.8 };
+/** Réglage du diagnostic pour un modèle : longueur du corps (m) et seuil d'arrêt proportionnel à sa vitesse de marche nominale (m/s). */
+export const slipConfigFor = (bodyLength: number, nominalWalk: number): SlipConfig => ({ ...DEFAULT_SLIP, bodyLength, stopSpeed: DEFAULT_SLIP.stopSpeed * Math.min(1, nominalWalk / 0.565) });
 export const slipThreshold = (c: SlipConfig = DEFAULT_SLIP) => c.relThreshold * c.bodyLength;
 
 export interface SlipRun {
@@ -64,7 +66,7 @@ export class ContactTracker {
       // un pied nettement soulevé (petit pas de rattrapage) n'est pas en contact, même si le clip annonce un appui
       const phase: Phase = f.phase === 'stance' && !grounded ? 'swing' : f.phase;
       // une phase est « appui » (clip) ; à l'arrêt prolongé, un pied au sol est mesuré comme « arrêt »
-      const resting = stopped && this.stopSince >= 0 && b.t - this.stopSince >= this.cfg.minRest && grounded;
+      const resting = stopped && phase !== 'swing' && this.stopSince >= 0 && b.t - this.stopSince >= this.cfg.minRest && grounded;
       const want: Open['kind'] | null = phase === 'stance' ? 'appui' : resting ? 'arrêt' : null;
       let o = this.open[i];
       if (o && want !== o.kind) { this.close(i, b.t); o = null; }

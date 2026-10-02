@@ -6,6 +6,10 @@ import { CLIP_DATA, ClipLocomotionData } from './foxClips';
 import { FOX_ENVELOPES } from './foxEnvelopes';
 import { FOX_HULL } from './foxHull';
 import { FOX_RIG } from './foxRig';
+import { CAT_RIG } from './catRig';
+import { CAT_CLIP_DATA } from './catClips';
+import { CAT_ENVELOPES } from './catEnvelopes';
+import { CAT_HULL } from './catHull';
 
 export interface ModelCapabilities {
   /** Paupières (os ou morph) : sans elles, les yeux ne peuvent pas se fermer. */
@@ -59,5 +63,21 @@ export const FOX_PROFILE: ModelProfile = {
   capabilities: { eyelids: false, jaw: false, tongue: false, ears: false, pivotClip: false, sit: 'procedural', lie: 'procedural', sleep: 'procedural', groom: 'procedural', stretch: 'procedural' },
 };
 
+export const CAT_PROFILE: ModelProfile = {
+  id: 'cat-realistic',
+  label: 'Chat roux tigré (réaliste)',
+  species: 'chat domestique (Felis catus)',
+  license: 'maillage « Cat » toti.shroom, CC BY 4.0 ; squelette et animations Mesh2Motion / Quaternius, CC0 ; skinning par tools/cat/build-cat.mts',
+  scale: CAT_RIG.refScale,
+  axes: { forward: '+z', up: '+y', left: '+x' },
+  bodyLength: 0.44,
+  clips: { idle: 'Idle', walk: 'Walk', run: 'Run' },
+  clipData: CAT_CLIP_DATA,
+  rig: CAT_RIG as unknown as typeof FOX_RIG,
+  hull: CAT_HULL,
+  envelopes: CAT_ENVELOPES,
+  capabilities: { eyelids: false, jaw: true, tongue: false, ears: true, pivotClip: false, sit: 'clip', lie: 'procedural', sleep: 'procedural', groom: 'procedural', stretch: 'procedural' },
+};
+
 /** Profil actif de l'application. */
-export const ACTIVE_PROFILE: ModelProfile = FOX_PROFILE;
+export const ACTIVE_PROFILE: ModelProfile = CAT_PROFILE;

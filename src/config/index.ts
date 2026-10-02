@@ -7,5 +7,5 @@ export { DEFAULT_ANIMATION } from './animation';
 export type { AnimationConfig, FootIKConfig } from './animation';
 export { DEFAULT_TURN } from './turning';
 export type { TurnConfig } from './turning';
-export { FOX_STANDIN, ROOM } from './pet';
+export { FOX_STANDIN, CAT_REALISTIC, ACTIVE_PET, ROOM } from './pet';
 export type { PetModelConfig } from './pet';
