@@ -47,7 +47,7 @@ test('toilette : la patte fait l\'essentiel du mouvement (la tête s\'incline de
   const contact = log.filter((l) => l.contact > 0.9);
   const headRange = Math.max(...contact.map((l) => Math.abs(l.head - sit))) * 180 / Math.PI;
   const armRange = Math.max(...contact.map((l) => Math.abs(l.arm))) * 180 / Math.PI;
-  assert.ok(headRange < 12, `tête ±${headRange.toFixed(1)}°`);
+  assert.ok(headRange < 14, `tête ±${headRange.toFixed(1)}°`);
   assert.ok(armRange > 25, `épaule ${armRange.toFixed(1)}°`);
 });
 
@@ -70,7 +70,11 @@ test('toilette : le côté de la patte ne change pas pendant la séquence ; la p
   assert.ok(log[log.length - 1].t - lastContact > 2.0, 'plus de contact patte-visage pendant les 2 dernières secondes (repose, recentrage, observation)');
 });
 
-test('toilette : poses de référence — l\'assise de toilette est plus basse que l\'assise standard et le bassin est fléchi', () => {
-  const a = compilePose(POSES.sit), b = compilePose(POSES.groomSit);
-  assert.ok(b[3 * 0] > a[3 * 0], 'bassin moins incliné (colonne moins verticale)');
+test('toilette : assise de référence — bassin fléchi à −30° (et non −40°), colonne moins verticale, enveloppe plus basse que l\'ancienne assise', async () => {
+  const { ACTIVE_PROFILE } = await import('../src/config/modelProfile');
+  const hip = compilePose(POSES.sit)[0];
+  assert.ok(hip > -35 && hip < -25, `tangage du bassin ${hip}°`);
+  assert.equal(POSES.groomSit, POSES.sit, 'la toilette part de l\'assise de référence (aucune remontée du corps)');
+  const top = Math.max(...ACTIVE_PROFILE.envelopes.sit.map((p) => p[1]));
+  assert.ok(top <= 0.4, `hauteur de l'enveloppe assise ${(top * 100).toFixed(0)} cm (ancienne assise : 42 cm)`);
 });

@@ -13,11 +13,13 @@ const both = (a: Euler3, left: BoneKey, right: BoneKey): Partial<Record<BoneKey,
 
 export const POSES: Record<string, Pose> = {
   stand: P({}),
-  /** Assis : bassin au sol, buste redressé, antérieurs verticaux, postérieurs repliés (cuisse en avant, métatarse à plat). */
+  /** Assis : bassin au sol, colonne inclinée (hanche −30°, pas verticale), cuisses et jarrets repliés (métatarse à plat), antérieurs presque verticaux et légèrement
+   *  fléchis devant le thorax, tête un peu baissée, queue rabattue sur le côté. Sert d'assise de référence à l'activité « assis », à la toilette et au sommeil. */
   sit: P({
-    hip: [-40, 0, 0], neck: [12, 0, 0], head: [25, 0, 0],
-    ...both([40, 0, 0], 'armL', 'armR'), ...both([-20, 0, 0], 'legL1', 'legR1'), ...both([84, 0, 0], 'legL2', 'legR2'),
-    ...both([-95, 0, 0], 'footL1', 'footR1'), ...both([76, 0, 0], 'footL2', 'footR2'), tail1: [78, 0, 0],
+    hip: [-30, 0, 0], neck: [16, 0, 0], head: [20, 0, 0],
+    ...both([36, 0, 0], 'armL', 'armR'), ...both([-6, 0, 0], 'foreL', 'foreR'), ...both([8, 0, 0], 'handL', 'handR'),
+    ...both([-28, 0, 0], 'legL1', 'legR1'), ...both([84, 0, 0], 'legL2', 'legR2'), ...both([-95, 0, 0], 'footL1', 'footR1'), ...both([76, 0, 0], 'footL2', 'footR2'),
+    tail1: [78, 0, 25], tail2: [0, 0, 25],
   }),
   /** Couché, éveillé (position du sphinx) : poitrine au sol, antérieurs repliés vers l'avant, postérieurs rentrés. */
   lie: P({
@@ -36,14 +38,6 @@ export const POSES: Record<string, Pose> = {
   /** Étirement avant (« salut ») : poitrine basse, antérieurs allongés, bassin haut. */
   stretch: P({
     hip: [28, 0, 0], neck: [-30, 0, 0], ...both([-100, 0, 0], 'armL', 'armR'), ...both([-5, 0, 0], 'foreL', 'foreR'), ...both([-28, 0, 0], 'legL1', 'legR1'),
-  }),
-  /** Assise de toilette : colonne inclinée (hanche −30°) et non verticale, cuisses et jarrets repliés, antérieurs presque verticaux et légèrement fléchis
-   *  devant le thorax, tête un peu baissée, queue rabattue sur le côté. Les mains restent là où l'assise « sit » les a posées (< 2 cm). */
-  groomSit: P({
-    hip: [-30, 0, 0], neck: [16, 0, 0], head: [20, 0, 0],
-    ...both([36, 0, 0], 'armL', 'armR'), ...both([-6, 0, 0], 'foreL', 'foreR'), ...both([8, 0, 0], 'handL', 'handR'),
-    ...both([-28, 0, 0], 'legL1', 'legR1'), ...both([84, 0, 0], 'legL2', 'legR2'), ...both([-95, 0, 0], 'footL1', 'footR1'), ...both([76, 0, 0], 'footL2', 'footR2'),
-    tail1: [78, 0, 25], tail2: [0, 0, 25],
   }),
   /** Transfert de poids avant de lever la patte droite : le thorax se déplace vers le côté porteur (gauche), l'antérieur gauche s'étend un peu. */
   groomShift: P({
@@ -74,6 +68,8 @@ export const POSES: Record<string, Pose> = {
     tail1: [78, 0, 25], tail2: [0, 0, 25],
   }),
 };
+/** Assise de la toilette = assise de référence (même pose : pas de remontée du corps entre l'assise et la toilette). */
+POSES.groomSit = POSES.sit;
 
 /** Pose miroir (patte gauche au lieu de droite) : os gauche ↔ droit, roulis et lacet inversés. */
 const SWAP: Partial<Record<BoneKey, BoneKey>> = { armL: 'armR', armR: 'armL', foreL: 'foreR', foreR: 'foreL', handL: 'handR', handR: 'handL', legL1: 'legR1', legR1: 'legL1', legL2: 'legR2', legR2: 'legL2', footL1: 'footR1', footR1: 'footL1', footL2: 'footR2', footR2: 'footL2' };
@@ -113,23 +109,25 @@ export interface SequenceDef {
   keys: Key[];
   /** Pieds tenus en place (coordonnées monde) pendant la séquence : chaîne de pattes concernée. */
   anchors?: ('handL' | 'handR' | 'footL2' | 'footR2')[];
+  /** Repositionnement d'un pied tenu : à `at` (part de la séquence) il est relâché, soulevé de ~1,8 cm, déplacé vers sa place dans la pose pendant `dur` s, puis reposé (jamais traîné sur plusieurs cm). */
+  steps?: Partial<Record<'handL' | 'handR' | 'footL2' | 'footR2', { at: number; dur: number }>>;
 }
 const S = POSES.stand, SIT = POSES.sit, LIE = POSES.lie, SLP = POSES.sleep, STR = POSES.stretch;
 
 export const SEQUENCES: SequenceDef[] = [
-  { name: 'SittingDown', from: 'stand', to: 'sit', anchors: ['handL', 'handR'], keys: [
+  { name: 'SittingDown', from: 'stand', to: 'sit', anchors: ['handL', 'handR', 'footL2', 'footR2'], steps: { footL2: { at: 0.4, dur: 0.3 }, footR2: { at: 0.55, dur: 0.3 }, handL: { at: 0.62, dur: 0.28 }, handR: { at: 0.72, dur: 0.28 } }, keys: [
     { t: 0, pose: S, w: 0 },
     { t: 0.4, pose: blend(S, SIT, { rear: 0.15, front: 0.1, head: 0.05 }), w: 1 },   // il prépare son assise : poids reporté, genoux fléchis
     { t: 1.0, pose: blend(S, SIT, { rear: 0.65, front: 0.35, head: 0.3 }), w: 1 },   // le bassin descend, le buste se redresse
     { t: 1.7, pose: SIT, w: 1 },
   ] },
-  { name: 'StandingUp', from: 'sit', to: 'stand', anchors: ['handL', 'handR'], keys: [
+  { name: 'StandingUp', from: 'sit', to: 'stand', anchors: ['handL', 'handR', 'footL2', 'footR2'], steps: { footL2: { at: 0.15, dur: 0.3 }, footR2: { at: 0.3, dur: 0.3 }, handL: { at: 0.5, dur: 0.28 }, handR: { at: 0.6, dur: 0.28 } }, keys: [
     { t: 0, pose: SIT, w: 1 },
     { t: 0.5, pose: blend(SIT, S, { rear: 0.25, front: 0.1, head: 0.2 }), w: 1 },
     { t: 1.1, pose: blend(SIT, S, { rear: 0.8, front: 0.6, head: 0.6 }), w: 1 },
     { t: 1.6, pose: S, w: 0 },
   ] },
-  { name: 'LyingDown', from: 'sit', to: 'lie', keys: [
+  { name: 'LyingDown', from: 'sit', to: 'lie', anchors: ['handL', 'handR', 'footL2', 'footR2'], steps: { handL: { at: 0.35, dur: 0.4 }, handR: { at: 0.5, dur: 0.4 }, footL2: { at: 0.3, dur: 0.35 }, footR2: { at: 0.45, dur: 0.35 } }, keys: [
     { t: 0, pose: SIT, w: 1 },
     { t: 0.6, pose: blend(SIT, LIE, { rear: 0.0, front: 0.35, head: 0.2 }), w: 1 },   // les antérieurs glissent vers l'avant, la poitrine descend
     { t: 1.5, pose: blend(SIT, LIE, { rear: 0.6, front: 0.9, head: 0.7 }), w: 1 },

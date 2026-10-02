@@ -16,7 +16,7 @@ export const IDLE_STATE: Record<Posture, PostureState> = { stand: 'StandingIdle'
 
 interface ActiveSeq {
   id: number;
-  def: Pick<SequenceDef, 'name' | 'from' | 'to' | 'anchors'>;
+  def: Pick<SequenceDef, 'name' | 'from' | 'to' | 'anchors' | 'steps'>;
   arr: Float64Array[];
   t: number[];
   w: number[];
@@ -163,7 +163,7 @@ export class PostureController {
     return out;
   }
 
-  private start(def: Pick<SequenceDef, 'name' | 'from' | 'to' | 'anchors'>, arr: Float64Array[], keys: { t: number; w: number; contact?: number; pt?: Float64Array }[], safe: number[] = []) {
+  private start(def: Pick<SequenceDef, 'name' | 'from' | 'to' | 'anchors' | 'steps'>, arr: Float64Array[], keys: { t: number; w: number; contact?: number; pt?: Float64Array }[], safe: number[] = []) {
     this.seqId++;
     this.seq = { id: this.seqId, def, arr, t: keys.map((k) => k.t), w: keys.map((k) => k.w), contact: keys.map((k) => k.contact ?? 0), pt: keys.map((k) => k.pt ?? MUZZLE), duration: keys[keys.length - 1].t, time: 0, safe, abortAtKey: -1 };
     this.state = def.name;

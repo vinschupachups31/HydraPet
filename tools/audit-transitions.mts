@@ -20,7 +20,7 @@ function frame() {
     const lo = s.lowest(); st.maxLowest = Math.max(st.maxLowest, lo); st.minLowest = Math.min(st.minLowest, lo);
     for (const k of feetKeys) {
       const p = s.pos(k); minY[k] = Math.min(minY[k] ?? Infinity, p.y);
-      const grounded = p.y < minY[k] + 0.012;
+      const grounded = p.y < minY[k] + 0.006;
       if (grounded) { runStart[k] ??= p.clone(); st.slide = Math.max(st.slide, Math.hypot(p.x - runStart[k]!.x, p.z - runStart[k]!.z)); } else runStart[k] = null;
     }
   } else for (const k of feetKeys) runStart[k] = null;

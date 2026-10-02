@@ -97,7 +97,7 @@ export class AnimationController {
   readonly rig: PoseRig;
   posture: PostureController | null = null;
   private anchorSeq = -1;
-  private anchorTargets: { chain: THREE.Object3D[]; effector: THREE.Object3D; target: THREE.Vector3 }[] = [];
+  private anchorTargets: { key: string; chain: THREE.Object3D[]; effector: THREE.Object3D; target: THREE.Vector3 }[] = [];
   private gazePitchNow = 0;
   private groomGap = 0;
   private padOffset = new THREE.Vector3();
@@ -189,16 +189,25 @@ export class AnimationController {
         const chainKeys = key === 'handL' ? FOX_RIG.forepaw.L : key === 'handR' ? FOX_RIG.forepaw.R : key === 'footL2' ? (['legL1', 'legL2', 'footL1', 'footL2'] as const) : (['legR1', 'legR2', 'footR1', 'footR2'] as const);
         const chain = chainKeys.map((c) => this.rig.bones[c]);
         const effector = chain[chain.length - 1];
-        return { chain, effector, target: effector.getWorldPosition(new THREE.Vector3()) };
+        return { key, chain, effector, target: effector.getWorldPosition(new THREE.Vector3()) };
       });
     }
     // la contrainte se relâche pendant le dernier quart de la séquence : la pose finale reprend la main sans saut
-    const rel = 1 - Math.max(0, (seq.time / seq.duration - 0.78) / 0.22);
-    if (rel <= 0.01) return;
+    const rel0 = 1 - Math.max(0, (seq.time / seq.duration - 0.78) / 0.22);
     for (const t of this.anchorTargets) {
       const cur = t.effector.getWorldPosition(this.tv);
-      this.tv2.set(cur.x + (t.target.x - cur.x) * rel, cur.y, cur.z + (t.target.z - cur.z) * rel); // horizontal seulement : la hauteur reste celle de la pose (pas de pénétration du sol)
-      solveChain(t.chain, t.effector, null, this.tv2, { iterations: 5, stepLimit: 0.5, maxJointDelta: 0.9 });
+      let rel = rel0, lift = 0, k = 1;                                               // k : 1 = tenu, 0 = à la place que donne la pose
+      const st = seq.def.steps?.[t.key as 'footL2'];
+      if (st) {                                                                        // repositionnement : relâcher, soulever légèrement, déplacer, reposer
+        const u = (seq.time - st.at * seq.duration) / st.dur;
+        if (u >= 1) rel = 0; else if (u > 0) { // le déplacement n'a lieu que pendant que le pied est en l'air
+          const m = Math.max(0, Math.min(1, (u - 0.18) / 0.64)), e = m * m * (3 - 2 * m); k = 1 - e; lift = (t.key.startsWith('hand') ? 0.04 : 0.025) * Math.sin(Math.PI * u); rel = 1; }
+      }
+      if (rel <= 0.01) continue;
+      const heldX = t.target.x, heldZ = t.target.z;
+      const tx = cur.x + (heldX - cur.x) * rel * k, tz = cur.z + (heldZ - cur.z) * rel * k;   // horizontal seulement : la hauteur reste celle de la pose
+      this.tv2.set(tx, cur.y + lift, tz);
+      solveChain(t.chain, t.effector, null, this.tv2, { iterations: lift > 0 ? 9 : 5, stepLimit: 0.5, maxJointDelta: lift > 0 ? 1.3 : 0.9 });
     }
     this.root.updateMatrixWorld(true);
   }

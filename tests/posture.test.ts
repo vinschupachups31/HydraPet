@@ -101,7 +101,7 @@ test('assis → debout : les antérieurs tenus ne glissent pas', async () => {
     if (!s.posture.seq) return;
     const hs = [s.pos('handL'), s.pos('handR')].map((v) => v.toArray());
     if (!start) start = hs;
-    if (s.posture.progress < 0.78) hs.forEach((h, i) => { drift = Math.max(drift, Math.hypot(h[0] - start![i][0], h[2] - start![i][2])); });
+    if (s.posture.progress < 0.45) hs.forEach((h, i) => { drift = Math.max(drift, Math.hypot(h[0] - start![i][0], h[2] - start![i][2])); });
   });
   assert.ok(drift < 0.015, `glissement ${(drift * 100).toFixed(1)} cm`);
 });

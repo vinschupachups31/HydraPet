@@ -182,7 +182,7 @@ export function Pet({ config, source, framing }: Props) {
     }
     overlayData.target = loco.target;
     overlayData.arriveRadius = ctl.bcfg.arrive.radius;
-    overlayData.pos.x = s.x; overlayData.pos.z = s.z;
+    overlayData.pos.x = s.x; overlayData.pos.z = s.z; (overlayData.pos as { heading?: number }).heading = s.heading;
     if (viewStore.get().overlay) {
       const m = overlayData.markers; m.length = 0;
       const rg = anim.rig;
