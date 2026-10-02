@@ -44,7 +44,7 @@ export function DebugOverlay() {
       for (let i = 0; i < n; i++) {
         const p = tr[tr.length - n + i];
         pos.setXYZ(i, p.x, p.y + 0.004, p.z);
-        if (p.color === 'green') col.setXYZ(i, 0.1, 0.7, 0.2); else if (p.color === 'red') col.setXYZ(i, 0.95, 0.1, 0.1); else col.setXYZ(i, 0.2, 0.45, 0.95);
+        if (p.color === 'green') col.setXYZ(i, 0.1, 0.7, 0.2); else if (p.color === 'red') col.setXYZ(i, 0.95, 0.1, 0.1); else if (p.color === 'orange') col.setXYZ(i, 1, 0.6, 0.05); else if (p.color === 'purple') col.setXYZ(i, 0.7, 0.1, 0.85); else col.setXYZ(i, 0.2, 0.45, 0.95);
       }
       pos.needsUpdate = true; col.needsUpdate = true; trailGeo.setDrawRange(0, n);
     }

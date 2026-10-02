@@ -10,7 +10,7 @@ export const CAT_BONES: Record<BoneKey, string> = {
   armR: 'Front_Leg_Upper_R', foreR: 'Front_Leg_Lower_R', handR: 'Front_Leg_Tip_R',
   legL1: 'Back_Leg_Upper_L', legL2: 'Back_Leg_Lower_L', footL1: 'Back_Leg_Ankle_L', footL2: 'Back_Leg_Tip_L',
   legR1: 'Back_Leg_Upper_R', legR2: 'Back_Leg_Lower_R', footR1: 'Back_Leg_Ankle_R', footR2: 'Back_Leg_Tip_R',
-  tail1: 'Tail_Base', tail2: 'Tail_Mid001', tail3: 'Tail_End',
+  tail1: 'Tail_Mid', tail2: 'Tail_Mid001', tail3: 'Tail_End',
 };
 
 export const CAT_RIG = {

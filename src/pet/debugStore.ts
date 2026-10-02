@@ -40,6 +40,7 @@ export interface DebugSnapshot {
   gait: string;
   autonomy: boolean;
   ik: boolean;
+  layerMode: string;
   fps: number;
   loaded: boolean;
   clips: string;
@@ -50,6 +51,7 @@ export interface DebugCommands {
   toggleGait?: () => void;
   toggleAutonomy?: () => void;
   toggleIK?: () => void;
+  cycleLayers?: () => void;
   touch?: () => void;
   force?: (k: 'observe' | 'sit' | 'groom' | 'sleep' | 'stretch') => void;
   toggleMode?: () => void;
@@ -63,7 +65,7 @@ let snap: DebugSnapshot = {
   state: '-', phaseName: '-', postureState: 'StandingIdle', pending: '-', groomGap: 0, anchors: 0, mode: 'demo', simSpeed: 1, diag: '-', diagStep: '-', diagMeasuring: false, footPhases: '', diagReport: [], remaining: 0, poi: '-', zone: '-', tripsInRow: 0, nextApproachIn: 0,
   phase: 'idle', speedRequested: 0, speedReal: 0, omega: 0, gaze: 0, distance: 0,
   clip: 'repos', idleW: 1, walkW: 0, runW: 0, walkRate: 1, runRate: 1, feet: '',
-  gait: 'auto', autonomy: true, ik: true, fps: 0, loaded: false, clips: '',
+  gait: 'auto', autonomy: true, ik: true, layerMode: 'full', fps: 0, loaded: false, clips: '',
 };
 const listeners = new Set<() => void>();
 

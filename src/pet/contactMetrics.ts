@@ -39,8 +39,8 @@ export interface SlipRun {
   meanSpeed: number; meanOmega: number;
 }
 
-/** Couleur d'un point de trajectoire : vert appui, bleu levée, rouge appui qui dépasse le seuil. */
-export type TrailColor = 'green' | 'blue' | 'red';
+/** Couleur d'un point de trajectoire : vert appui valide, bleu pied levé, rouge glissement excessif, orange pied qui flotte pendant un appui, violet pénétration du sol. */
+export type TrailColor = 'green' | 'blue' | 'red' | 'orange' | 'purple';
 export interface TrailPoint { foot: number; x: number; y: number; z: number; color: TrailColor }
 
 interface Open { kind: 'appui' | 'arrêt'; t0: number; ref: { x: number; z: number } | null; hx: number; hz: number; n: number; sp: number; om: number; slip: number; lon: number; lat: number; over: boolean; start: BodySample }
@@ -48,13 +48,16 @@ interface Open { kind: 'appui' | 'arrêt'; t0: number; ref: { x: number; z: numb
 export class ContactTracker {
   readonly runs: SlipRun[] = [];
   readonly trail: TrailPoint[] = [];
+  /** Hauteur du dessous de patte pendant les appuis (sol à y = 0) : flottement au-dessus de `groundTol`, pénétration en dessous de `−groundTol`. */
+  readonly ground = { stance: 0, floating: 0, penetrating: 0, maxFloat: 0, maxPen: 0 };
+  groundTol = 0.01;
   private open: (Open | null)[] = [null, null, null, null];
   private minY = [Infinity, Infinity, Infinity, Infinity];
   private stopSince = -1;
   maxTrail = 6000;
   constructor(public cfg: SlipConfig = DEFAULT_SLIP) {}
 
-  reset() { this.runs.length = 0; this.trail.length = 0; this.open = [null, null, null, null]; this.stopSince = -1; }
+  reset() { Object.assign(this.ground, { stance: 0, floating: 0, penetrating: 0, maxFloat: 0, maxPen: 0 }); this.runs.length = 0; this.trail.length = 0; this.open = [null, null, null, null]; this.stopSince = -1; }
 
   push(b: BodySample, feet: FootSample[]) {
     const thr = slipThreshold(this.cfg);
@@ -82,6 +85,11 @@ export class ContactTracker {
           else if (o.over) color = 'red';
         }
       }
+      if (phase === 'stance') { // contact vérifié par la géométrie (hauteur du dessous de patte), pas par l'ombre
+        const g = this.ground; g.stance++;
+        if (f.y > this.groundTol) { g.floating++; g.maxFloat = Math.max(g.maxFloat, f.y); if (color === 'green') color = 'orange'; }
+        else if (f.y < -this.groundTol) { g.penetrating++; g.maxPen = Math.max(g.maxPen, -f.y); if (color === 'green') color = 'purple'; }
+      }
       this.trail.push({ foot: i, x: f.x, y: f.y, z: f.z, color });
     });
     if (this.trail.length > this.maxTrail) this.trail.splice(0, this.trail.length - this.maxTrail);
@@ -108,6 +116,7 @@ export class ContactTracker {
       threshold: { relative: this.cfg.relThreshold, bodyLength: this.cfg.bodyLength, metres: thr },
       total: { n: all.length, median: all.length ? all[Math.floor(all.length / 2)] : 0, max: all.length ? all[all.length - 1] : 0, over: this.runs.filter((x) => x.over).length },
       longitudinal: by('longitudinal'), lateral: by('latéral'), arret: by('arrêt'),
+      ground: { ...this.ground, tolerance: this.groundTol },
     };
   }
 }

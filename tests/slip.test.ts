@@ -20,6 +20,9 @@ for (const sc of DIAG_SCENARIOS) {
       assert.ok(r.total.max < L.maxCm, `max ${(r.total.max * 100).toFixed(1)} cm (seuil ${(slipThreshold() * 100).toFixed(1)} cm)`);
       assert.ok(r.total.over <= L.overMax, `${r.total.over} appuis > seuil`);
       assert.ok(r.arret.max < L.restMaxCm, `glissement à l'arrêt ${(r.arret.max * 100).toFixed(2)} cm`);
+      // contact vérifié par la géométrie (dessous de patte vs sol, après tout le pipeline) : aucun pied enfoncé, peu de flottement et jamais plus de 2,5 cm
+      assert.ok(r.ground.penetrating === 0 && r.ground.maxPen < 0.01, `pénétration du sol : ${r.ground.penetrating} images, max ${(r.ground.maxPen * 100).toFixed(1)} cm`);
+      assert.ok(r.ground.floating / Math.max(1, r.ground.stance) < 0.1 && r.ground.maxFloat < 0.025, `pied qui flotte pendant l'appui : ${(100 * r.ground.floating / Math.max(1, r.ground.stance)).toFixed(1)} % des images, max ${(r.ground.maxFloat * 100).toFixed(1)} cm`);
     });
   }
 }

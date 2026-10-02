@@ -18,7 +18,7 @@ for (const [n, sc] of DIAG_SCENARIOS.entries()) {
   console.log(`\n${sc.name}\n  longitudinal : ${c(o.longitudinal)}\n  latéral      : ${c(o.lateral)}\n  à l'arrêt    : ${c(o.arret)}\n  total        : ${o.total.n} appuis, ${o.total.over} > seuil`);
   if (process.argv.includes('--worst')) for (const x of r.runs.filter((q) => q.over).sort((a, b) => b.slip - a.slip).slice(0, 6)) console.log(`    ${x.cls.padEnd(12)} patte ${x.foot} t=${x.t0.toFixed(2)}–${x.t1.toFixed(2)} glisse ${cm(x.slip)} cm (long ${cm(x.longitudinal)}, lat ${cm(x.lateral)}) v̄=${x.meanSpeed.toFixed(2)} |ω̄|=${x.meanOmega.toFixed(2)}`);
   if (svgOut) {
-    const W = 300, k = 110, ox = W / 2, oz = 170, col = { green: '#2a9d3f', blue: '#3b7ddd', red: '#e02424' };
+    const W = 300, k = 110, ox = W / 2, oz = 170, col: Record<string, string> = { green: '#2a9d3f', blue: '#3b7ddd', red: '#e02424', orange: '#f59e0b', purple: '#a21caf' };
     svg += `<g transform="translate(${(n % 2) * 320},${Math.floor(n / 2) * 360})"><text x="4" y="14" font-size="12">${sc.name}</text><text x="4" y="28" font-size="10" fill="#555">vert = appui · bleu = levée · rouge = appui &gt; ${cm(slipThreshold())} cm</text>`;
     const tr = r.tracker.trail;
     for (const p of tr) svg += `<circle cx="${(ox + p.x * k).toFixed(1)}" cy="${(oz - p.z * k).toFixed(1)}" r="${p.color === 'blue' ? 0.8 : 1.6}" fill="${col[p.color]}" fill-opacity="${p.color === 'blue' ? 0.5 : 0.9}"/>`;

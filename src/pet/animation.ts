@@ -39,6 +39,16 @@ export interface AnimPlan {
 
 export const newPlan = (): AnimPlan => ({ locomoting: false, running: false, idleW: 1, walkW: 0, runW: 0, walkRate: 1, runRate: 1, idleRate: 1 });
 
+/** Couches de correction, activables une à une pour isoler celle qui déforme le corps (diagnostic).
+ *  clip : clip seul, parent immobile ; root : clip + déplacement du parent ; procedural : + posture, sol, regard, oreilles ; full : + appuis IK. */
+export type LayerMode = 'clip' | 'root' | 'procedural' | 'full';
+export interface Layers { ik: boolean; ground: boolean; posture: boolean; gaze: boolean; expression: boolean }
+export const LAYER_MODES: Record<LayerMode, Layers> = {
+  clip: { ik: false, ground: false, posture: false, gaze: false, expression: false },
+  root: { ik: false, ground: false, posture: false, gaze: false, expression: false },
+  procedural: { ik: false, ground: true, posture: true, gaze: true, expression: true },
+  full: { ik: true, ground: true, posture: true, gaze: true, expression: true },
+};
 const REF_WALK = 0.565, REF_RUN = 0.858;
 
 /** Met le plan à jour. Dépend uniquement de dt : mêmes résultats à 30 et 60 images/s (lissages exponentiels). */
@@ -103,6 +113,9 @@ export class AnimationController {
   private durations: Record<Slot, number>;
   readonly rig: PoseRig;
   private expression: ExpressionLayer | null = null;
+  layerMode: LayerMode = 'full';
+  readonly layers: Layers = { ...LAYER_MODES.full };
+  setLayerMode(m: LayerMode) { this.layerMode = m; Object.assign(this.layers, LAYER_MODES[m]); }
   posture: PostureController | null = null;
   private anchorSeq = -1;
   private anchorTargets: { key: string; chain: THREE.Object3D[]; effector: THREE.Object3D; target: THREE.Vector3 }[] = [];
@@ -150,7 +163,8 @@ export class AnimationController {
   /** @param gaze  décalages de regard (rad) fournis par la locomotion ; `pitch` : inclinaison verticale de la tête (rad, > 0 vers le bas) */
   update(dt: number, inp: AnimInput, gaze: { head: number; spine: number; pitch?: number }) {
     const post = this.posture;
-    const posed = !!post && (post.weight > 1e-3 || post.busy);
+    const L = this.layers;
+    const posed = L.posture && !!post && (post.weight > 1e-3 || post.busy);
     const p = planAnimation(this.plan, posed ? { realSpeed: 0, omega: 0, pivoting: false } : inp, dt, this.cfg, this.nominalWalk, this.nominalRun);
     const a = this.actions;
     a.idle.setEffectiveWeight(p.idleW); a.walk.setEffectiveWeight(p.walkW); a.run.setEffectiveWeight(p.runW);
@@ -163,11 +177,11 @@ export class AnimationController {
     if (posed) {
       this.rig.applyArray(post!.pose, post!.weight);
       this.root.updateMatrixWorld(true);
-      this.rig.groundSolve(post!.weight);        // le bassin descend avec les membres fléchis : le corps ne traverse pas le sol et ne flotte pas
+      if (L.ground) this.rig.groundSolve(post!.weight);        // le bassin descend avec les membres fléchis : le corps ne traverse pas le sol et ne flotte pas
       this.holdAnchors(post!);
       this.groomContact(post!);
-      this.rig.groundSolve(post!.weight);        // 2e passe : les contraintes ci-dessus ne doivent jamais enfoncer un pied dans le sol
-      this.ik.update(false, 0, dt);
+      if (L.ground) this.rig.groundSolve(post!.weight);        // 2e passe : les contraintes ci-dessus ne doivent jamais enfoncer un pied dans le sol
+      if (L.ik) this.ik.update(false, 0, dt); else this.ik.hold(dt);
     } else {
       this.rig.groundShift = 0; this.anchorSeq = -1; this.groomGap = 0;
       const ikOn = this.cfg.ik.clips;
@@ -176,17 +190,18 @@ export class AnimationController {
       const clip: Slot | null = walkOk ? 'walk' : runOk ? 'run' : null;
       const phase = clip ? (a[clip].time / this.durations[clip]) % 1 : 0;
       const walking = !!clip && (inp.pivoting || p.locomoting) && Math.abs(inp.omega) <= this.cfg.ik.maxOmega;
-      if (walking) this.ik.update(true, phase, dt); else this.ik.hold(dt);
+      if (!L.ik) { for (const f of this.ik.feet) { f.plant = null; f.weight = 0; } }
+      else if (walking) this.ik.update(true, phase, dt); else this.ik.hold(dt);
       this.root.updateMatrixWorld(true);
-      this.rig.groundSolve(1, 0, true);           // le corps ne s'enfonce jamais dans le sol pendant la marche ; il n'est pas abaissé (course : phase aérienne)
+      if (L.ground) this.rig.groundSolve(1, 0, true);           // le corps ne s'enfonce jamais dans le sol pendant la marche ; il n'est pas abaissé (course : phase aérienne)
     }
-    const gazeOk = !post || post.allowGaze;
+    const gazeOk = L.gaze && (!post || post.allowGaze);
     const k = 1 - Math.exp(-dt / 0.25);
     this.gazePitchNow += (((gazeOk ? gaze.pitch ?? 0 : 0)) - this.gazePitchNow) * k;
     applyChain(this.spineChain, gazeOk ? gaze.spine : 0);
     applyChain(this.headChain, gazeOk ? gaze.head : 0);
     applyPitchChain(this.headChain, this.gazePitchNow, this.root);
-    if (this.expression) {                      // oreilles : pas pendant la toilette (la patte touche l'oreille)
+    if (this.expression && L.expression) {      // oreilles : pas pendant la toilette (la patte touche l'oreille)
       this.expression.weight = post && post.state === 'Grooming' ? 0 : 1;
       this.expression.update(dt);
     }

@@ -101,6 +101,7 @@ export function Pet({ config, source, framing }: Props) {
     debugStore.commands.toggleMode = () => { bcfgRef.activities.mode = bcfgRef.activities.mode === 'demo' ? 'production' : 'demo'; debugStore.set({ mode: bcfgRef.activities.mode }); };
     debugStore.commands.setSpeed = (v) => { timeScale.current = v; debugStore.set({ simSpeed: v }); };
     debugStore.set({ mode: bcfgRef.activities.mode, simSpeed: 1 });
+    debugStore.commands.cycleLayers = () => { const order = ['full', 'procedural', 'root', 'clip'] as const; const next = order[(order.indexOf(ctl.anim.layerMode) + 1) % order.length]; ctl.anim.setLayerMode(next); debugStore.set({ layerMode: next }); };
     debugStore.commands.toggleIK = () => { animCfg.ik.enabled = !animCfg.ik.enabled; debugStore.set({ ik: animCfg.ik.enabled }); };
     const g = globalThis as { __HP_PROBE__?: unknown; __HP_API__?: unknown };
     if (g.__HP_PROBE__) {
@@ -118,6 +119,7 @@ export function Pet({ config, source, framing }: Props) {
         speed: (v: number) => { timeScale.current = v; },
         mode: (m: 'demo' | 'production') => { bcfgRef.activities.mode = m; },
         ik: (v: boolean) => { animCfg.ik.enabled = v; },
+        layers: (m: 'clip' | 'root' | 'procedural' | 'full') => { anim.setLayerMode(m); debugStore.set({ layerMode: m }); },
         events: () => behavior.events,
         nominal: () => ({ walk: anim.nominalWalk, run: anim.nominalRun }),
         tuning: () => ({ animCfg, bcfg: ctl.bcfg }),
@@ -141,7 +143,7 @@ export function Pet({ config, source, framing }: Props) {
       loco.update(dt);                             // 2. position, orientation, freinage, virages, collisions (le seul système qui déplace le parent)
       posture.update(dt);                          // 3. séquences de posture (pose cible)
     }
-    if (group.current) {
+    if (group.current && anim.layerMode !== 'clip') {   // mode « clip seul » : le parent reste immobile
       group.current.position.set(s.x, 0, s.z);
       group.current.quaternion.set(0, s.q.y, 0, s.q.w).multiply(yawOffsetQ);
     }
@@ -157,7 +159,7 @@ export function Pet({ config, source, framing }: Props) {
       if (dg.done) {
         ctl.tracker.finish(behavior.time);
         const o = ctl.tracker.report(), c = (q: { n: number; median: number; max: number; over: number }) => `${q.n} appuis · médiane ${(q.median * 100).toFixed(1)} cm · max ${(q.max * 100).toFixed(1)} cm · ${q.over} > seuil`;
-        debugStore.set({ diagReport: [`seuil ${(o.threshold.relative * 100).toFixed(0)} % de ${o.threshold.bodyLength} m = ${(o.threshold.metres * 100).toFixed(1)} cm`, `longitudinal : ${c(o.longitudinal)}`, `latéral : ${c(o.lateral)}`, `à l'arrêt : ${c(o.arret)}`], diag: dg.scenario.id + ' (terminé)' });
+        debugStore.set({ diagReport: [`seuil ${(o.threshold.relative * 100).toFixed(0)} % de ${o.threshold.bodyLength} m = ${(o.threshold.metres * 100).toFixed(1)} cm`, `longitudinal : ${c(o.longitudinal)}`, `latéral : ${c(o.lateral)}`, `à l'arrêt : ${c(o.arret)}`, `appuis : ${o.ground.stance} images, flottent ${o.ground.floating} (max ${(o.ground.maxFloat * 100).toFixed(1)} cm), enfoncés ${o.ground.penetrating} (max ${(o.ground.maxPen * 100).toFixed(1)} cm)`], diag: dg.scenario.id + ' (terminé)' });
         behavior.autonomy = diagWasAuto.current; debugStore.set({ autonomy: behavior.autonomy });
         dg.stop();
       }

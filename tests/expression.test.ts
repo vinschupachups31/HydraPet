@@ -33,3 +33,16 @@ test('oreilles : désactivé par le poids (toilette) et déterministe pour une g
   assert.ok(tipOf(a.root, 'Ear_Tip_L').distanceTo(tipOf(base.root, 'Ear_Tip_L')) < 1e-6 && tipOf(a.root, 'Ear_Tip_R').distanceTo(tipOf(base.root, 'Ear_Tip_R')) < 1e-6, 'poids nul : rien ne bouge');
   assert.ok(tipOf(b.root, 'Ear_Tip_L').distanceTo(tipOf(base.root, 'Ear_Tip_L')) + tipOf(b.root, 'Ear_Tip_R').distanceTo(tipOf(base.root, 'Ear_Tip_R')) > 0.01, 'poids 1 : une oreille a bougé');
 });
+
+test('couches de diagnostic : « clip seul » ne laisse aucune correction (sol, appuis, regard)', async () => {
+  const { makeRigSim } = await import('./helpers/rigSim');
+  const s = await makeRigSim(2);
+  s.anim.setLayerMode('clip');
+  for (let i = 0; i < 120; i++) s.anim.update(1 / 60, { realSpeed: 0.3, omega: 0, pivoting: false }, { head: 0.6, spine: 0.3, pitch: 0.2 });
+  assert.equal(s.anim.rig.groundShift, 0, 'aucune correction de sol');
+  assert.ok(s.anim.ik.feet.every((f) => f.weight === 0 && f.plant === null), 'aucun pied verrouillé');
+  const head = s.root.getObjectByName('Head')!.quaternion.clone();
+  s.anim.setLayerMode('full');
+  for (let i = 0; i < 30; i++) s.anim.update(1 / 60, { realSpeed: 0.3, omega: 0, pivoting: false }, { head: 0.6, spine: 0.3, pitch: 0.2 });
+  assert.ok(head.angleTo(s.root.getObjectByName('Head')!.quaternion) > 0.05, 'le mode complet applique le regard');
+});

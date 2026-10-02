@@ -64,6 +64,7 @@ export function Hud() {
       )}
       <View style={styles.dev}>
         <Btn testID="btn-info" label={`Infos : ${view.info ? 'oui' : 'non'}`} onPress={() => viewStore.set({ info: !view.info })} />
+        <Btn testID="btn-layers" label={`Couches : ${({ full: 'complet', procedural: 'sans IK', root: 'clip + déplacement', clip: 'clip seul' } as Record<string, string>)[d.layerMode] ?? d.layerMode}`} onPress={() => debugStore.commands.cycleLayers?.()} />
         <Btn testID="btn-ik" label={`Appuis IK : ${d.ik ? 'oui' : 'non'}`} onPress={() => debugStore.commands.toggleIK?.()} />
         <Btn testID="btn-overlay" label={`Superposition : ${view.overlay ? 'oui' : 'non'}`} onPress={() => viewStore.set({ overlay: !view.overlay })} />
         <Btn testID="btn-side" label={`Profil : ${view.devSide ? 'oui' : 'non'}`} onPress={() => viewStore.set({ devSide: !view.devSide, devClose: false, devThree: false, devFront: false })} />
