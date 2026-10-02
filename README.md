@@ -1,40 +1,57 @@
-# HydraPet 💧🐾
+# HydraPet — test technique 3D (Expo + React Three Fiber)
 
-Suis ton hydratation avec un compagnon cartoon (chien ou chat) qui vit dans ta pièce.
+Test visuel de faisabilité : un animal 3D riggé (GLB) qui vit dans une pièce, sur téléphone, avec Expo.
+**Ce n'est pas l'application complète** : ni journal d'eau, ni sauvegarde, ni écrans. Voir [`RESULTS.md`](RESULTS.md) pour les résultats et les limites, [`ASSETS.md`](ASSETS.md) pour les licences.
 
-## Fonctionnement
-1. **Profil** : poids, taille, activité → besoin quotidien en eau (≈ 33 ml/kg, ajusté selon la taille et l'activité ; estimation indicative, pas un avis médical).
-2. **Scan de l'animal** : photo → couleurs extraites sur l'appareil → cartoon SVG (couleurs modifiables).
-3. **Scan de la pièce** : photo → palette → pièce cartoon 2D.
-4. **Écran principal** : l'animal vit sa vie dans la pièce (marche, court, dort, saute sur le canapé, boit à sa gamelle…), se laisse caresser, rapporte le jouet lancé. Son humeur suit ton hydratation.
+> **Important :** le modèle fourni est un **renard** (stand-in technique, 576 triangles), pas un chat ni un chien, et il n'est pas réaliste.
+> Voir [`docs/ADD_A_PET.md`](docs/ADD_A_PET.md) pour brancher un vrai chat ou chien.
 
-**180 poses** : 36 poses de base × 5 humeurs, interpolées en douceur. Galerie : `index.html#/poses`.
+## Lancer sur votre téléphone (Expo Go)
+Prérequis : Node.js 22+, l'application **Expo Go** sur le téléphone, PC et téléphone sur le même Wi-Fi.
 
-## Lancer
-Aucune installation : ouvre `index.html` dans un navigateur. Sur téléphone, « Scanner » ouvre l'appareil photo.
-Les photos ne quittent jamais l'appareil ; les données sont dans le `localStorage`.
-
-## Animation
-L'animal est animé par notre moteur SVG ; les effets (confettis, éclaboussure) sont des animations **Lottie** ; les micro-interactions sont en CSS. Détail, règles et licences : [`docs/ANIMATION.md`](docs/ANIMATION.md).
-
-## Tests
 ```bash
-node tests/run.js   # logique : besoin en eau, historique, poses, couleurs, fichiers Lottie
+git clone https://github.com/vinschupachups31/HydraPet.git
+cd HydraPet
+git checkout expo-r3f-spike
+npm install
+npx expo start
 ```
-Plan produit et feuille de route : [`PLAN.md`](PLAN.md).
+Puis scanner le QR code (Android : depuis Expo Go ; iPhone : avec l'appareil photo, qui ouvre Expo Go).
 
-## Structure
+- Réseau qui bloque la connexion (Wi-Fi d'entreprise, invité) : `npx expo start --tunnel`.
+- Si Expo Go affiche « incompatible » : la version d'Expo Go du magasin ne prend pas encore en charge le SDK 57 → utilisez le *development build* ci-dessous.
+
+### Expo Go ou development build ?
+| | Expo Go | Development build |
+|---|---|---|
+| Ce que ce test utilise | `expo-gl`, `expo-asset`, `expo-file-system` : **inclus dans Expo Go** (SDK 57), le reste est du JavaScript | pareil |
+| Installation | Aucune compilation, scanner le QR | Compiler une app dédiée (Android Studio, ou EAS cloud) |
+| Suffit pour ce test ? | **Oui, en principe** (non vérifié sur téléphone par moi) | Nécessaire si Expo Go est incompatible avec le SDK 57 |
+| Nécessaire plus tard pour | — | micro (appel vocal), notifications fiables, modules natifs, publication |
+
+Les deux modes **ne sont pas équivalents** : Expo Go est un lecteur générique fourni par Expo ; un development build est *votre* application, avec vos modules natifs.
+
+Development build Android (si besoin) :
+```bash
+# Option A : compilation locale (Android Studio + SDK installés)
+npx expo install expo-dev-client
+npx expo run:android
+
+# Option B : compilation cloud (compte gratuit sur expo.dev)
+npx eas-cli build --profile development --platform android
 ```
-index.html, style.css
-js/store.js    état, calcul du besoin, historique, humeur
-js/colors.js   extraction de couleurs (k-means) depuis une photo
-js/poses.js    bibliothèque de 180 poses
-js/pet.js      rendu SVG de l'animal (chien / chat)
-js/fx.js       effets Lottie avec repli automatique
-js/vendor/     lottie-web (MIT)
-assets/lottie/ animations Lottie (+ lottie-data.js généré)
-scripts/       make-lottie.js, build-lottie-assets.js
-js/room.js     pièce cartoon générée depuis la palette
-js/world.js    boucle de vie : comportements, jouet, caresses, particules
-js/app.js      écrans, hydratation, historique, réglages
+iPhone : un development build exige un Mac et un compte Apple Developer (99 $/an).
+
+## Contrôles du test
+- **Toucher l'animal** : il s'arrête, se tourne vers la caméra et observe.
+- **Appeler** : il vient devant la caméra.
+- **Allure** : auto → marche → course (test des clips et des transitions).
+- **Autonomie** : coupe ou remet ses déplacements spontanés.
+- L'écran affiche les fps, l'état, la vitesse, les poids des clips et leur cadence.
+
+## Vérifications
+```bash
+npm test            # logique de déplacement et de comportement (7 tests)
+npm run typecheck
+npm run analyze -- assets/models/fox.glb   # clips, os, vitesse de marche d'un modèle
 ```
